@@ -27,10 +27,22 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response.data,
   (error) => {
+    // 处理401未授权错误
     if (error.response?.status === 401) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       window.location.href = '/login';
+    }
+    // 处理422 token验证失败错误
+    if (error.response?.status === 422) {
+      const errorMsg = error.response?.data?.error || 'Token验证失败';
+      console.error('JWT验证失败:', errorMsg);
+      // 如果是token相关错误，清除token并跳转登录
+      if (errorMsg.includes('Token') || errorMsg.includes('token')) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(error);
   }
