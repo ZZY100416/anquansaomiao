@@ -13,7 +13,10 @@ const Login = () => {
     try {
       await authService.login(values.username, values.password);
       message.success('登录成功');
-      navigate('/dashboard');
+      // 延迟一下确保token已保存，然后强制刷新页面跳转
+      setTimeout(() => {
+        window.location.href = '/dashboard';
+      }, 300);
     } catch (error) {
       message.error(error.response?.data?.error || '登录失败');
     } finally {
