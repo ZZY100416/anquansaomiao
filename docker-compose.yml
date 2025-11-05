@@ -51,7 +51,8 @@ services:
       dockerfile: Dockerfile
     container_name: uss-frontend
     environment:
-      - REACT_APP_API_URL=http://localhost:5000/api
+      - REACT_APP_API_URL=http://192.168.203.141:5000/api
+      - CHOKIDAR_USEPOLLING=true
     ports:
       - "3000:3000"
     depends_on:
