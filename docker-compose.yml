@@ -1,0 +1,85 @@
+version: '3.8'
+
+services:
+  # PostgreSQL数据库
+  postgres:
+    image: postgres:15-alpine
+    container_name: uss-postgres
+    environment:
+      POSTGRES_DB: security_scanner
+      POSTGRES_USER: scanner
+      POSTGRES_PASSWORD: scanner123
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - scanner-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U scanner"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # 后端API服务
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: uss-backend
+    environment:
+      - DATABASE_URL=postgresql://scanner:scanner123@postgres:5432/security_scanner
+      - FLASK_ENV=production
+      - SECRET_KEY=your-secret-key-change-in-production
+    volumes:
+      - ./backend:/app
+      - scan_results:/app/scan_results
+      - uploaded_files:/app/uploaded_files
+    ports:
+      - "5000:5000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - scanner-network
+    command: python app.py
+
+  # 前端Web界面
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: uss-frontend
+    environment:
+      - REACT_APP_API_URL=http://localhost:5000/api
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - scanner-network
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+
+  # Redis缓存（可选，用于任务队列）
+  redis:
+    image: redis:7-alpine
+    container_name: uss-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - scanner-network
+    volumes:
+      - redis_data:/data
+
+volumes:
+  postgres_data:
+  redis_data:
+  scan_results:
+  uploaded_files:
+
+networks:
+  scanner-network:
+    driver: bridge
+

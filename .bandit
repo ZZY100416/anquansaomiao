@@ -1,0 +1,14 @@
+# Bandit配置文件
+[bandit]
+# 排除的目录
+exclude_dirs = tests,venv,node_modules,__pycache__,build,dist
+
+# 跳过的检查项
+skips = B101  # 使用assert语句
+
+# 最低安全级别
+severity_level = medium
+
+# 置信度级别
+confidence_level = medium
+

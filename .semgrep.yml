@@ -1,0 +1,57 @@
+# Semgrep配置文件
+# 自定义安全扫描规则
+
+rules:
+  - id: detect-sql-injection
+    pattern: |
+      query = "SELECT * FROM $X WHERE id = " + $Y
+    message: 检测到SQL注入风险，请使用参数化查询
+    languages: [python]
+    severity: ERROR
+    metadata:
+      category: security
+      owasp: A03:2021 – Injection
+
+  - id: detect-command-injection
+    pattern: |
+      os.system($CMD)
+      subprocess.call($CMD)
+    message: 检测到命令注入风险
+    languages: [python]
+    severity: ERROR
+    metadata:
+      category: security
+      owasp: A03:2021 – Injection
+
+  - id: detect-hardcoded-secrets
+    pattern: |
+      password = "$PASSWORD"
+      api_key = "$KEY"
+      secret = "$SECRET"
+    message: 检测到硬编码的密钥，请使用环境变量
+    languages: [python, javascript]
+    severity: WARNING
+    metadata:
+      category: security
+      owasp: A07:2021 – Identification and Authentication Failures
+
+  - id: detect-weak-crypto
+    pattern: |
+      hashlib.md5($X)
+      hashlib.sha1($X)
+    message: 检测到弱加密算法，请使用SHA-256或更强的算法
+    languages: [python]
+    severity: WARNING
+    metadata:
+      category: security
+
+  - id: detect-xss
+    pattern: |
+      return render_template_string($TEMPLATE)
+    message: 检测到XSS风险，请对用户输入进行转义
+    languages: [python]
+    severity: ERROR
+    metadata:
+      category: security
+      owasp: A03:2021 – Injection
+
