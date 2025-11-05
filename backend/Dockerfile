@@ -11,12 +11,11 @@ RUN apt-get update && apt-get install -y \
     gnupg \
     && rm -rf /var/lib/apt/lists/*
 
-# 安装Trivy扫描器（使用新的方法，不依赖apt-key）
-RUN wget -qO /usr/share/keyrings/trivy.gpg https://aquasecurity.github.io/trivy-repo/deb/public.key \
-    && echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" | tee /etc/apt/sources.list.d/trivy.list \
-    && apt-get update \
-    && apt-get install -y trivy \
-    && rm -rf /var/lib/apt/lists/*
+# 安装Trivy扫描器（使用二进制方式，兼容所有Debian版本）
+RUN wget -qO - https://github.com/aquasecurity/trivy/releases/latest/download/trivy_0.51.4_Linux-64bit.tar.gz | tar -xz \
+    && mv trivy /usr/local/bin/trivy \
+    && chmod +x /usr/local/bin/trivy \
+    && trivy --version
 
 # 安装OWASP Dependency-Check
 RUN mkdir -p /opt/dependency-check \
