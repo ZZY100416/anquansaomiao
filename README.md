@@ -105,6 +105,7 @@ unified-security-scanner/
 - [DevSecOps流程文档](docs/DevSecOps流程文档.md)
 - [团队分工与Git工作流](docs/团队分工与Git工作流.md)
 - [OpenRASP集成指南](docs/OpenRASP集成指南.md)
+- [Git工作流程指南](docs/Git工作流程指南.md) - Windows修改同步到Ubuntu
 
 ## License
 
