@@ -11,12 +11,16 @@ import { useAuth } from './services/authService';
 
 function App() {
   const { isAuthenticated } = useAuth();
-  const [authState, setAuthState] = useState(isAuthenticated());
+  const [authState, setAuthState] = useState(() => {
+    // 初始状态：检查localStorage中是否有token
+    return !!localStorage.getItem('token');
+  });
 
   // 监听localStorage变化，更新认证状态
   useEffect(() => {
     const checkAuth = () => {
-      setAuthState(isAuthenticated());
+      const authenticated = !!localStorage.getItem('token');
+      setAuthState(authenticated);
     };
 
     // 初始检查
@@ -25,11 +29,19 @@ function App() {
     // 监听storage事件（跨标签页）
     window.addEventListener('storage', checkAuth);
 
-    // 定期检查（处理同标签页的更新）
-    const interval = setInterval(checkAuth, 100);
+    // 监听自定义事件（同标签页登录/登出）
+    const handleAuthChange = () => {
+      // 立即检查并更新状态
+      checkAuth();
+    };
+    window.addEventListener('authChange', handleAuthChange);
+
+    // 定期检查（降低频率，避免过于频繁）
+    const interval = setInterval(checkAuth, 2000);
 
     return () => {
       window.removeEventListener('storage', checkAuth);
+      window.removeEventListener('authChange', handleAuthChange);
       clearInterval(interval);
     };
   }, []);

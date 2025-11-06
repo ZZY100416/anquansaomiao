@@ -17,6 +17,8 @@ export const authService = {
   logout: () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    // 触发认证状态变化事件
+    window.dispatchEvent(new Event('authChange'));
   },
 
   getCurrentUser: async () => {

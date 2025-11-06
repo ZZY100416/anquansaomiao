@@ -13,10 +13,14 @@ const Login = () => {
     try {
       await authService.login(values.username, values.password);
       message.success('登录成功');
-      // 延迟一下确保token已保存，然后强制刷新页面跳转
+      
+      // 触发认证状态变化事件，让App.js更新状态
+      window.dispatchEvent(new Event('authChange'));
+      
+      // 延迟一下确保状态更新，然后跳转
       setTimeout(() => {
-        window.location.href = '/dashboard';
-      }, 300);
+        navigate('/dashboard', { replace: true });
+      }, 100);
     } catch (error) {
       message.error(error.response?.data?.error || '登录失败');
     } finally {
