@@ -11,10 +11,18 @@ class RASPScanner:
     
     def __init__(self):
         # OpenRASP管理后台API地址（从环境变量或配置读取）
-        # 默认地址：http://192.168.203.141:8086/api
-        self.rasp_api_url = os.getenv('OPENRASP_API_URL', 'http://192.168.203.141:8086/api')
+        # 注意：OpenRASP的API路径可能不是/api，需要根据实际文档调整
+        # 默认地址：http://192.168.203.141:8086
+        base_url = os.getenv('OPENRASP_API_URL', 'http://192.168.203.141:8086')
+        # 如果URL已经包含/api，直接使用；否则尝试不同的API路径
+        if '/api' in base_url:
+            self.rasp_api_url = base_url
+        else:
+            # 尝试不同的API路径
+            self.rasp_api_url = base_url.rstrip('/')
         self.rasp_api_key = os.getenv('OPENRASP_API_KEY', '')
         import sys
+        print(f"[RASP] OpenRASP基础地址: {base_url}", file=sys.stderr)
         print(f"[RASP] OpenRASP API地址: {self.rasp_api_url}", file=sys.stderr)
     
     def scan(self, scan):
@@ -50,11 +58,46 @@ class RASPScanner:
                 headers['Authorization'] = f'Bearer {self.rasp_api_key}'
             
             # 获取事件列表
-            response = requests.get(
+            # 尝试不同的API路径
+            api_paths = [
+                f'{self.rasp_api_url}/api/events',
                 f'{self.rasp_api_url}/events',
-                headers=headers,
-                timeout=10
-            )
+                f'{self.rasp_api_url}/api/v1/events',
+            ]
+            
+            response = None
+            for api_path in api_paths:
+                try:
+                    import sys
+                    print(f"[RASP] 尝试API路径: {api_path}", file=sys.stderr)
+                    response = requests.get(api_path, headers=headers, timeout=10)
+                    if response.status_code == 200:
+                        print(f"[RASP] API路径成功: {api_path}", file=sys.stderr)
+                        break
+                    else:
+                        print(f"[RASP] API路径返回状态码 {response.status_code}: {api_path}", file=sys.stderr)
+                except Exception as e:
+                    print(f"[RASP] API路径失败: {api_path}, 错误: {str(e)}", file=sys.stderr)
+                    continue
+            
+            if not response or response.status_code != 200:
+                import sys
+                print(f"[RASP] 所有API路径都失败，返回模拟数据", file=sys.stderr)
+                results.append({
+                    'severity': 'info',
+                    'type': 'RASP Connection',
+                    'title': 'OpenRASP API连接失败（模拟数据）',
+                    'description': f'无法连接到OpenRASP API。请检查API地址是否正确。尝试的路径: {api_paths}',
+                    'file_path': '',
+                    'line_number': None,
+                    'raw_data': {
+                        'is_mock': True,
+                        'reason': 'rasp_api_failed',
+                        'api_urls': api_paths,
+                        'note': '请检查OpenRASP API地址和路径'
+                    }
+                })
+                return results
             
             if response.status_code == 200:
                 data = response.json()

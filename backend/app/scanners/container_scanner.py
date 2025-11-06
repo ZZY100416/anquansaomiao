@@ -17,14 +17,32 @@ class ContainerScanner:
                 if isinstance(scan.config, str):
                     print(f"[Container] 尝试解析JSON字符串: {scan.config}", file=sys.stderr)
                     try:
-                        config = json.loads(scan.config)
+                        # 先去除可能的引号
+                        config_str = scan.config.strip()
+                        if config_str.startswith('"') and config_str.endswith('"'):
+                            config_str = config_str[1:-1]
+                            print(f"[Container] 去除外层引号后: {config_str}", file=sys.stderr)
+                        
+                        # 解析JSON
+                        config = json.loads(config_str)
                         print(f"[Container] 解析后的config: {config}, 类型: {type(config)}", file=sys.stderr)
+                        
                         # 确保解析后是字典
                         if not isinstance(config, dict):
-                            print(f"[Container] 警告: 解析后不是字典类型，强制转换为字典", file=sys.stderr)
-                            config = {}
+                            print(f"[Container] 警告: 解析后不是字典类型 ({type(config)})，尝试重新解析", file=sys.stderr)
+                            # 如果解析后是字符串，再次解析
+                            if isinstance(config, str):
+                                config = json.loads(config)
+                                print(f"[Container] 二次解析后的config: {config}, 类型: {type(config)}", file=sys.stderr)
+                            else:
+                                config = {}
                     except json.JSONDecodeError as json_err:
                         print(f"[Container] JSON解析失败: {str(json_err)}", file=sys.stderr)
+                        config = {}
+                    except Exception as e:
+                        print(f"[Container] 解析异常: {str(e)}", file=sys.stderr)
+                        import traceback
+                        print(f"[Container] 错误堆栈: {traceback.format_exc()}", file=sys.stderr)
                         config = {}
                 # 如果已经是字典，直接使用
                 elif isinstance(scan.config, dict):
