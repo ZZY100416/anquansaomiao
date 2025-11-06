@@ -70,12 +70,18 @@ const Scans = () => {
 
   const handleSubmit = async (values) => {
     try {
-      await api.post('/scans', values);
+      console.log('[Scan] 开始创建扫描任务:', values);
+      const response = await api.post('/scans', values);
+      console.log('[Scan] 扫描任务创建成功:', response);
       message.success('扫描任务已创建');
       setModalVisible(false);
+      form.resetFields();
       fetchScans();
     } catch (error) {
-      message.error('创建扫描任务失败');
+      console.error('[Scan] 创建扫描任务失败:', error);
+      console.error('[Scan] 错误详情:', error.response?.data || error.message);
+      const errorMsg = error.response?.data?.error || error.message || '创建扫描任务失败';
+      message.error(errorMsg);
     }
   };
 
