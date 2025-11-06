@@ -26,18 +26,33 @@ RUN TRIVY_VERSION="0.50.0" \
      echo "echo 'Trivy not installed'" >> /usr/local/bin/trivy && \
      chmod +x /usr/local/bin/trivy)
 
-# 安装OWASP Dependency-Check（添加错误处理和重试）
+# 安装OWASP Dependency-Check（改进安装逻辑）
 RUN mkdir -p /opt/dependency-check \
     && cd /opt/dependency-check \
-    && (wget --timeout=30 --tries=3 https://github.com/jeremylong/DependencyCheck/releases/latest/download/dependency-check-9.0.9-release.zip && \
-        unzip dependency-check-9.0.9-release.zip && \
-        rm dependency-check-9.0.9-release.zip && \
-        chmod +x /opt/dependency-check/dependency-check/bin/dependency-check.sh) || \
-    (echo "Warning: OWASP Dependency-Check download failed, SCA scanning may not work" && \
-     mkdir -p /opt/dependency-check/dependency-check/bin && \
-     echo "#!/bin/sh" > /opt/dependency-check/dependency-check/bin/dependency-check.sh && \
-     echo "echo 'Dependency-Check not installed'" >> /opt/dependency-check/dependency-check/bin/dependency-check.sh && \
-     chmod +x /opt/dependency-check/dependency-check/bin/dependency-check.sh)
+    && echo "正在下载Dependency-Check..." \
+    && (wget --timeout=60 --tries=5 --progress=bar:force \
+        https://github.com/jeremylong/DependencyCheck/releases/download/v9.0.9/dependency-check-9.0.9-release.zip \
+        -O dependency-check.zip && \
+        echo "下载完成，开始解压..." && \
+        unzip -q dependency-check.zip && \
+        rm dependency-check.zip && \
+        chmod +x /opt/dependency-check/dependency-check/bin/dependency-check.sh && \
+        echo "验证安装..." && \
+        /opt/dependency-check/dependency-check/bin/dependency-check.sh --version && \
+        echo "Dependency-Check安装成功") || \
+    (echo "警告: Dependency-Check v9.0.9下载失败，尝试使用最新版本..." && \
+     wget --timeout=60 --tries=5 \
+        https://github.com/jeremylong/DependencyCheck/releases/download/v12.1.0/dependency-check-12.1.0-release.zip \
+        -O dependency-check.zip && \
+     unzip -q dependency-check.zip && \
+     rm dependency-check.zip && \
+     chmod +x /opt/dependency-check/dependency-check/bin/dependency-check.sh && \
+     /opt/dependency-check/dependency-check/bin/dependency-check.sh --version || \
+     (echo "警告: OWASP Dependency-Check安装失败，SCA扫描可能无法工作" && \
+      mkdir -p /opt/dependency-check/dependency-check/bin && \
+      echo "#!/bin/sh" > /opt/dependency-check/dependency-check/bin/dependency-check.sh && \
+      echo "echo 'Dependency-Check not installed'" >> /opt/dependency-check/dependency-check/bin/dependency-check.sh && \
+      chmod +x /opt/dependency-check/dependency-check/bin/dependency-check.sh))
 
 # 安装Semgrep
 RUN pip install semgrep
