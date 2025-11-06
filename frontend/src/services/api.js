@@ -36,14 +36,19 @@ api.interceptors.response.use(
     // 处理422 token验证失败错误
     if (error.response?.status === 422) {
       const errorMsg = error.response?.data?.error || '';
-      console.error('收到422错误:', errorMsg);
+      const errorStr = JSON.stringify(error.response?.data || {});
+      
+      console.error('收到422错误:', errorMsg, '完整响应:', errorStr);
       
       // 只有明确的token错误才清除token
       const isTokenError = errorMsg.includes('Token') || 
                           errorMsg.includes('token') || 
                           errorMsg.includes('无效的Token') ||
                           errorMsg.includes('无效的') ||
-                          errorMsg.toLowerCase().includes('invalid token');
+                          errorMsg.includes('缺少Token') ||
+                          errorMsg.includes('Token已过期') ||
+                          errorStr.toLowerCase().includes('invalid token') ||
+                          errorStr.toLowerCase().includes('token') && errorStr.toLowerCase().includes('invalid');
       
       if (isTokenError) {
         console.error('JWT验证失败，清除token:', errorMsg);
@@ -51,10 +56,13 @@ api.interceptors.response.use(
         localStorage.removeItem('user');
         // 触发认证状态变化事件
         window.dispatchEvent(new Event('authChange'));
-        window.location.href = '/login';
+        // 延迟跳转，避免与其他逻辑冲突
+        setTimeout(() => {
+          window.location.href = '/login';
+        }, 100);
       } else {
         // 其他422错误（可能是业务逻辑错误），只记录日志，不跳转
-        console.warn('422错误（非token错误）:', errorMsg);
+        console.warn('422错误（非token错误，不跳转）:', errorMsg);
       }
     }
     return Promise.reject(error);

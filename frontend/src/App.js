@@ -21,7 +21,7 @@ function App() {
       setAuthState((prev) => {
         // 只有状态真正变化时才更新，避免不必要的重新渲染
         if (prev !== authenticated) {
-          console.log('认证状态变化:', authenticated ? '已认证' : '未认证');
+          console.log('认证状态变化:', authenticated ? '已认证' : '未认证', 'Token:', token ? '存在' : '不存在');
           return authenticated;
         }
         return prev;
@@ -36,8 +36,10 @@ function App() {
 
     // 监听自定义事件（同标签页登录/登出）
     const handleAuthChange = () => {
-      // 立即检查并更新状态
-      checkAuth();
+      // 延迟检查，确保localStorage已更新
+      setTimeout(() => {
+        checkAuth();
+      }, 50);
     };
     window.addEventListener('authChange', handleAuthChange);
 
