@@ -54,6 +54,11 @@ class ScannerService:
             saved_count = 0
             for result_data in results:
                 try:
+                    # 确保result_data是字典
+                    if not isinstance(result_data, dict):
+                        print(f'[ScannerService] 跳过无效结果（不是字典）: {type(result_data)}, value={result_data}', file=sys.stderr)
+                        continue
+                    
                     result = ScanResult(
                         scan_id=scan_id,
                         severity=result_data.get('severity', 'info'),
@@ -71,7 +76,9 @@ class ScannerService:
                     db.session.add(result)
                     saved_count += 1
                 except Exception as e:
+                    import traceback
                     print(f'[ScannerService] 保存结果失败: {str(e)}, result_data={result_data}', file=sys.stderr)
+                    print(f'[ScannerService] 错误堆栈: {traceback.format_exc()}', file=sys.stderr)
             
             db.session.commit()
             print(f'[ScannerService] 成功保存 {saved_count} 个扫描结果', file=sys.stderr)

@@ -9,8 +9,23 @@ class ContainerScanner:
         results = []
         
         # 从扫描配置中获取镜像名称
-        config = json.loads(scan.config) if scan.config else {}
-        image_name = config.get('image_name', '')
+        try:
+            if scan.config:
+                # 如果config是字符串，解析JSON
+                if isinstance(scan.config, str):
+                    config = json.loads(scan.config)
+                # 如果已经是字典，直接使用
+                elif isinstance(scan.config, dict):
+                    config = scan.config
+                else:
+                    config = {}
+            else:
+                config = {}
+        except (json.JSONDecodeError, TypeError) as e:
+            print(f"[Container] 配置解析失败: {str(e)}, config={scan.config}", file=sys.stderr)
+            config = {}
+        
+        image_name = config.get('image_name', '') if isinstance(config, dict) else ''
         
         if not image_name:
             # 模拟扫描结果
