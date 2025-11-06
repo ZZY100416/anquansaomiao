@@ -11,7 +11,7 @@ bp = Blueprint('scans', __name__)
 @bp.route('', methods=['GET'])
 @jwt_required()
 def get_scans():
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())  # 转换为整数
     project_id = request.args.get('project_id', type=int)
     
     query = db.session.query(Scan).join(Project).filter(Project.user_id == user_id)
@@ -26,7 +26,7 @@ def get_scans():
 @bp.route('', methods=['POST'])
 @jwt_required()
 def create_scan():
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())  # 转换为整数
     data = request.get_json()
     
     if not data or not data.get('project_id') or not data.get('scan_type'):
@@ -60,7 +60,7 @@ def create_scan():
 @bp.route('/<int:scan_id>', methods=['GET'])
 @jwt_required()
 def get_scan(scan_id):
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())  # 转换为整数
     scan = db.session.query(Scan).join(Project).filter(
         Scan.id == scan_id,
         Project.user_id == user_id
@@ -74,7 +74,7 @@ def get_scan(scan_id):
 @bp.route('/<int:scan_id>/results', methods=['GET'])
 @jwt_required()
 def get_scan_results(scan_id):
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())  # 转换为整数
     scan = db.session.query(Scan).join(Project).filter(
         Scan.id == scan_id,
         Project.user_id == user_id

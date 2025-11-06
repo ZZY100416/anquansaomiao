@@ -10,7 +10,7 @@ bp = Blueprint('reports', __name__)
 @bp.route('/<int:scan_id>', methods=['GET'])
 @jwt_required()
 def generate_report(scan_id):
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())  # 转换为整数
     scan = db.session.query(Scan).join(Project).filter(
         Scan.id == scan_id,
         Project.user_id == user_id
@@ -41,7 +41,7 @@ def get_dashboard():
     # 直接输出到stderr，确保能看到日志
     print(f'[Dashboard] 请求到达 - Authorization头: {request.headers.get("Authorization", "未找到")}', file=sys.stderr)
     
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())  # 转换为整数
     print(f'[Dashboard] User ID: {user_id}', file=sys.stderr)
     
     # 获取用户所有项目

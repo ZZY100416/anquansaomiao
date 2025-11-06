@@ -69,7 +69,7 @@ def get_rasp_event(event_id):
 @jwt_required()
 def handle_rasp_event(event_id):
     """标记RASP事件为已处理"""
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())  # 转换为整数
     event = RASPEvent.query.get(event_id)
     
     if not event:

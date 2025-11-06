@@ -9,7 +9,7 @@ bp = Blueprint('projects', __name__)
 @bp.route('', methods=['GET'])
 @jwt_required()
 def get_projects():
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())  # 转换为整数
     projects = Project.query.filter_by(user_id=user_id).all()
     
     return jsonify([p.to_dict() for p in projects]), 200
@@ -17,7 +17,7 @@ def get_projects():
 @bp.route('', methods=['POST'])
 @jwt_required()
 def create_project():
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())  # 转换为整数
     data = request.get_json()
     
     if not data or not data.get('name'):
@@ -39,7 +39,7 @@ def create_project():
 @bp.route('/<int:project_id>', methods=['GET'])
 @jwt_required()
 def get_project(project_id):
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())  # 转换为整数
     project = Project.query.filter_by(id=project_id, user_id=user_id).first()
     
     if not project:
@@ -50,7 +50,7 @@ def get_project(project_id):
 @bp.route('/<int:project_id>', methods=['PUT'])
 @jwt_required()
 def update_project(project_id):
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())  # 转换为整数
     project = Project.query.filter_by(id=project_id, user_id=user_id).first()
     
     if not project:
@@ -73,7 +73,7 @@ def update_project(project_id):
 @bp.route('/<int:project_id>', methods=['DELETE'])
 @jwt_required()
 def delete_project(project_id):
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())  # 转换为整数
     project = Project.query.filter_by(id=project_id, user_id=user_id).first()
     
     if not project:
