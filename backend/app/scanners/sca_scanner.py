@@ -160,24 +160,61 @@ class SCAScanner:
         import sys
         results = []
         
-        # 检查项目类型并扫描
+        print(f'[SCA] 开始检查项目类型...', file=sys.stderr)
+        
+        # 检查项目中的关键文件
+        requirements_txt = os.path.join(project_path, 'requirements.txt')
+        setup_py = os.path.join(project_path, 'setup.py')
+        pyproject_toml = os.path.join(project_path, 'pyproject.toml')
+        package_json = os.path.join(project_path, 'package.json')
+        pom_xml = os.path.join(project_path, 'pom.xml')
+        build_gradle = os.path.join(project_path, 'build.gradle')
+        
+        print(f'[SCA] 检查文件：', file=sys.stderr)
+        print(f'[SCA]   requirements.txt: {os.path.exists(requirements_txt)}', file=sys.stderr)
+        print(f'[SCA]   setup.py: {os.path.exists(setup_py)}', file=sys.stderr)
+        print(f'[SCA]   pyproject.toml: {os.path.exists(pyproject_toml)}', file=sys.stderr)
+        print(f'[SCA]   package.json: {os.path.exists(package_json)}', file=sys.stderr)
+        print(f'[SCA]   pom.xml: {os.path.exists(pom_xml)}', file=sys.stderr)
+        print(f'[SCA]   build.gradle: {os.path.exists(build_gradle)}', file=sys.stderr)
+        
         # 1. Python项目 - 使用pip-audit
-        if os.path.exists(os.path.join(project_path, 'requirements.txt')) or \
-           os.path.exists(os.path.join(project_path, 'setup.py')) or \
-           os.path.exists(os.path.join(project_path, 'pyproject.toml')):
-            print(f'[SCA] 检测到Python项目，尝试使用pip-audit扫描...', file=sys.stderr)
-            results.extend(self._scan_python_dependencies(project_path))
+        if os.path.exists(requirements_txt) or os.path.exists(setup_py) or os.path.exists(pyproject_toml):
+            print(f'[SCA] ✓ 检测到Python项目，尝试使用pip-audit扫描...', file=sys.stderr)
+            python_results = self._scan_python_dependencies(project_path)
+            print(f'[SCA] Python扫描返回 {len(python_results)} 个结果', file=sys.stderr)
+            results.extend(python_results)
+        else:
+            print(f'[SCA] ✗ 未检测到Python项目文件', file=sys.stderr)
         
         # 2. Node.js项目 - 使用npm audit
-        if os.path.exists(os.path.join(project_path, 'package.json')):
-            print(f'[SCA] 检测到Node.js项目，尝试使用npm audit扫描...', file=sys.stderr)
-            results.extend(self._scan_nodejs_dependencies(project_path))
+        if os.path.exists(package_json):
+            print(f'[SCA] ✓ 检测到Node.js项目，尝试使用npm audit扫描...', file=sys.stderr)
+            nodejs_results = self._scan_nodejs_dependencies(project_path)
+            print(f'[SCA] Node.js扫描返回 {len(nodejs_results)} 个结果', file=sys.stderr)
+            results.extend(nodejs_results)
+        else:
+            print(f'[SCA] ✗ 未检测到Node.js项目文件', file=sys.stderr)
         
         # 3. Java项目 - 使用Maven或Gradle
-        if os.path.exists(os.path.join(project_path, 'pom.xml')):
-            print(f'[SCA] 检测到Maven项目，但需要Maven环境（暂不支持）', file=sys.stderr)
-        elif os.path.exists(os.path.join(project_path, 'build.gradle')):
-            print(f'[SCA] 检测到Gradle项目，但需要Gradle环境（暂不支持）', file=sys.stderr)
+        if os.path.exists(pom_xml):
+            print(f'[SCA] ✓ 检测到Maven项目，但需要Maven环境（暂不支持）', file=sys.stderr)
+            print(f'[SCA] 提示: Java项目需要Maven或Gradle环境，当前环境中未安装', file=sys.stderr)
+        elif os.path.exists(build_gradle):
+            print(f'[SCA] ✓ 检测到Gradle项目，但需要Gradle环境（暂不支持）', file=sys.stderr)
+            print(f'[SCA] 提示: Java项目需要Maven或Gradle环境，当前环境中未安装', file=sys.stderr)
+        else:
+            print(f'[SCA] ✗ 未检测到Java项目文件', file=sys.stderr)
+        
+        if len(results) == 0:
+            print(f'[SCA] ⚠ 警告: 未检测到任何支持的项目类型（Python/Node.js/Java）', file=sys.stderr)
+            print(f'[SCA] 提示: 项目可能不包含依赖文件，或者项目类型不被支持', file=sys.stderr)
+            # 列出项目目录中的一些文件，帮助诊断
+            try:
+                files = os.listdir(project_path)
+                print(f'[SCA] 项目目录中的文件（前20个）: {files[:20]}', file=sys.stderr)
+            except:
+                pass
         
         return results
     
