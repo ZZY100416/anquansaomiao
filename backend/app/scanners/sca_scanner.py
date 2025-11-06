@@ -225,14 +225,17 @@ class SCAScanner:
         else:
             print(f'[SCA] ✗ 未检测到Node.js项目文件', file=sys.stderr)
         
-        # 3. Java项目 - 使用Maven或Gradle
+        # 3. Java项目 - 使用Maven
         if pom_xml:
-            print(f'[SCA] ✓ 检测到Maven项目，但需要Maven环境（暂不支持）', file=sys.stderr)
-            print(f'[SCA] 提示: Java项目需要Maven或Gradle环境，当前环境中未安装', file=sys.stderr)
-            print(f'[SCA] pom.xml位置: {pom_xml}', file=sys.stderr)
+            print(f'[SCA] ✓ 检测到Maven项目，尝试使用Maven扫描...', file=sys.stderr)
+            scan_dir = os.path.dirname(pom_xml)
+            print(f'[SCA] Maven项目扫描目录: {scan_dir}', file=sys.stderr)
+            maven_results = self._scan_maven_dependencies(scan_dir)
+            print(f'[SCA] Maven扫描返回 {len(maven_results)} 个结果', file=sys.stderr)
+            results.extend(maven_results)
         elif build_gradle:
             print(f'[SCA] ✓ 检测到Gradle项目，但需要Gradle环境（暂不支持）', file=sys.stderr)
-            print(f'[SCA] 提示: Java项目需要Maven或Gradle环境，当前环境中未安装', file=sys.stderr)
+            print(f'[SCA] 提示: Gradle项目暂不支持，请使用Maven项目', file=sys.stderr)
             print(f'[SCA] build.gradle位置: {build_gradle}', file=sys.stderr)
         else:
             print(f'[SCA] ✗ 未检测到Java项目文件', file=sys.stderr)
@@ -352,7 +355,26 @@ class SCAScanner:
             
             if check_result.returncode != 0:
                 print(f'[SCA] npm未安装，无法扫描Node.js依赖', file=sys.stderr)
+                print(f'[SCA] 提示: 需要在Dockerfile中安装Node.js和npm', file=sys.stderr)
                 return results
+            
+            # 先检查是否有node_modules（如果没有，需要先npm install）
+            node_modules_path = os.path.join(project_path, 'node_modules')
+            if not os.path.exists(node_modules_path):
+                print(f'[SCA] 未找到node_modules目录，尝试运行npm install...', file=sys.stderr)
+                install_cmd = ['npm', 'install', '--no-audit', '--no-fund', '--legacy-peer-deps']
+                install_result = subprocess.run(
+                    install_cmd,
+                    capture_output=True,
+                    text=True,
+                    timeout=600,
+                    cwd=project_path
+                )
+                if install_result.returncode != 0:
+                    print(f'[SCA] npm install失败: {install_result.stderr[:500]}', file=sys.stderr)
+                    print(f'[SCA] 提示: 无法安装依赖，npm audit可能无法正常工作', file=sys.stderr)
+                else:
+                    print(f'[SCA] npm install完成', file=sys.stderr)
             
             # 执行npm audit扫描
             cmd = ['npm', 'audit', '--json']
@@ -396,6 +418,56 @@ class SCAScanner:
         except Exception as e:
             import traceback
             print(f'[SCA] npm audit扫描异常: {str(e)}', file=sys.stderr)
+            print(f'[SCA] 错误堆栈: {traceback.format_exc()}', file=sys.stderr)
+        
+        return results
+    
+    def _scan_maven_dependencies(self, project_path):
+        """使用Maven扫描Java依赖（通过Maven Dependency Plugin）"""
+        import sys
+        results = []
+        
+        try:
+            # 检查Maven是否可用
+            check_cmd = ['mvn', '--version']
+            check_result = subprocess.run(check_cmd, capture_output=True, text=True, timeout=10)
+            
+            if check_result.returncode != 0:
+                print(f'[SCA] Maven未安装，无法扫描Java依赖', file=sys.stderr)
+                return results
+            
+            print(f'[SCA] Maven版本: {check_result.stdout.split(chr(10))[0] if check_result.stdout else "unknown"}', file=sys.stderr)
+            
+            # 使用Maven Dependency Plugin获取依赖树
+            # 注意：Maven本身不直接扫描漏洞，需要通过mvn dependency:tree然后分析
+            # 这里使用一个简化的方法：尝试使用mvn dependency:tree，然后可以结合其他工具分析
+            
+            # 方法1：使用mvn dependency:tree获取依赖列表
+            print(f'[SCA] 执行Maven依赖分析...', file=sys.stderr)
+            cmd = ['mvn', 'dependency:tree', '-DoutputType=json']
+            
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=600,
+                cwd=project_path
+            )
+            
+            if result.returncode == 0 and result.stdout:
+                print(f'[SCA] Maven依赖树获取成功', file=sys.stderr)
+                # 注意：Maven dependency:tree的输出需要解析，这里暂时返回空结果
+                # 实际生产环境中，应该使用OWASP Dependency-Check或其他工具来分析Maven依赖
+                print(f'[SCA] 提示: Maven依赖树已获取，但需要OWASP Dependency-Check来分析漏洞', file=sys.stderr)
+                print(f'[SCA] 提示: 当前Dependency-Check未安装，Maven依赖扫描无法完成', file=sys.stderr)
+            else:
+                print(f'[SCA] Maven依赖树获取失败: {result.stderr}', file=sys.stderr)
+                
+        except subprocess.TimeoutExpired:
+            print(f'[SCA] Maven扫描超时', file=sys.stderr)
+        except Exception as e:
+            import traceback
+            print(f'[SCA] Maven扫描异常: {str(e)}', file=sys.stderr)
             print(f'[SCA] 错误堆栈: {traceback.format_exc()}', file=sys.stderr)
         
         return results

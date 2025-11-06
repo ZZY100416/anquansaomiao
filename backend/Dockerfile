@@ -42,6 +42,20 @@ RUN mkdir -p /opt/dependency-check \
 # 安装Semgrep
 RUN pip install semgrep
 
+# 安装Node.js和npm（用于npm audit扫描Node.js依赖）
+RUN apt-get update && \
+    curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && \
+    apt-get install -y nodejs && \
+    npm --version && \
+    node --version && \
+    rm -rf /var/lib/apt/lists/*
+
+# 安装Maven（用于扫描Java/Maven项目依赖）
+RUN apt-get update && \
+    apt-get install -y maven && \
+    mvn --version && \
+    rm -rf /var/lib/apt/lists/*
+
 # 复制Python依赖文件
 COPY requirements.txt .
 
