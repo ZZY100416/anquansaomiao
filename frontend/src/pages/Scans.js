@@ -388,6 +388,13 @@ const Scans = () => {
                               ? result.raw_data
                               : JSON.stringify(result.raw_data, null, 2)}
                           </pre>
+                          {result.raw_data && typeof result.raw_data === 'object' && result.raw_data.is_mock && (
+                            <div style={{ marginTop: 8, padding: 8, background: '#fff3cd', borderRadius: 4 }}>
+                              <Text type="warning">
+                                ⚠️ 这是模拟数据，因为：{result.raw_data.reason || 'unknown'}
+                              </Text>
+                            </div>
+                          )}
                         </Descriptions.Item>
                       )}
                     </Descriptions>

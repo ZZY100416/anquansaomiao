@@ -13,14 +13,16 @@ class SASTScanner:
         
         if not os.path.exists(project_path):
             # 模拟扫描结果（实际应该执行semgrep）
+            # 注意：这是测试数据，因为项目文件不存在
+            print(f"[SAST] 警告: 项目路径不存在 {project_path}，返回模拟数据")
             results.append({
                 'severity': 'high',
                 'type': 'SQL Injection',
-                'title': '潜在的SQL注入漏洞',
-                'description': '检测到未参数化的SQL查询',
+                'title': '潜在的SQL注入漏洞（模拟数据）',
+                'description': '检测到未参数化的SQL查询。注意：这是测试数据，因为项目文件不存在。请上传项目代码到 /app/uploaded_files/project_{project_id} 目录。',
                 'file_path': 'app/models/user.py',
                 'line_number': 45,
-                'raw_data': {}
+                'raw_data': {'is_mock': True, 'reason': 'project_path_not_found', 'path': project_path}
             })
         else:
             try:

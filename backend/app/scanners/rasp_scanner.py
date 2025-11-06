@@ -84,28 +84,36 @@ class RASPScanner:
                     })
             else:
                 # API调用失败，返回模拟数据（用于演示）
+                print(f"[RASP] 警告: OpenRASP API调用失败 (状态码: {response.status_code})，返回模拟数据")
                 results.append({
                     'severity': 'high',
                     'type': 'SQL Injection',
-                    'title': '检测到SQL注入攻击尝试',
-                    'description': 'OpenRASP在运行时检测到SQL注入攻击',
+                    'title': '检测到SQL注入攻击尝试（模拟数据）',
+                    'description': 'OpenRASP在运行时检测到SQL注入攻击。注意：这是测试数据，因为OpenRASP API连接失败。请确保OpenRASP服务已启动并配置正确的API地址。',
                     'file_path': '',
                     'line_number': None,
                     'raw_data': {
+                        'is_mock': True,
+                        'reason': 'rasp_api_failed',
+                        'status_code': response.status_code,
+                        'api_url': self.rasp_api_url,
                         'message': 'OpenRASP API连接失败，这是模拟数据',
                         'note': '请配置正确的OPENRASP_API_URL和OPENRASP_API_KEY'
                     }
                 })
         except Exception as e:
             # 如果OpenRASP未运行或无法连接，返回提示信息
+            print(f"[RASP] 警告: OpenRASP连接失败: {str(e)}，返回模拟数据")
             results.append({
                 'severity': 'info',
                 'type': 'RASP Connection',
-                'title': 'OpenRASP连接失败',
-                'description': f'无法连接到OpenRASP管理后台: {str(e)}。请确保OpenRASP已正确安装并运行。',
+                'title': 'OpenRASP连接失败（模拟数据）',
+                'description': f'无法连接到OpenRASP管理后台: {str(e)}。请确保OpenRASP已正确安装并运行。注意：这是测试数据，因为无法连接到OpenRASP服务。',
                 'file_path': '',
                 'line_number': None,
                 'raw_data': {
+                    'is_mock': True,
+                    'reason': 'rasp_connection_failed',
                     'error': str(e),
                     'api_url': self.rasp_api_url,
                     'note': '请检查OpenRASP配置和网络连接'
@@ -155,14 +163,21 @@ class RASPScanner:
                         'raw_data': event
                     })
         except Exception as e:
+            print(f"[RASP] 警告: 获取应用 {app_id} 的事件失败: {str(e)}，返回模拟数据")
             results.append({
                 'severity': 'info',
                 'type': 'RASP Connection',
-                'title': 'OpenRASP连接失败',
-                'description': f'无法获取应用 {app_id} 的事件: {str(e)}',
+                'title': 'OpenRASP连接失败（模拟数据）',
+                'description': f'无法获取应用 {app_id} 的事件: {str(e)}。注意：这是测试数据，因为无法连接到OpenRASP服务。',
                 'file_path': '',
                 'line_number': None,
-                'raw_data': {'error': str(e), 'app_id': app_id}
+                'raw_data': {
+                    'is_mock': True,
+                    'reason': 'rasp_get_app_events_failed',
+                    'error': str(e),
+                    'app_id': app_id,
+                    'api_url': self.rasp_api_url
+                }
             })
         
         return results

@@ -13,18 +13,20 @@ class ContainerScanner:
         
         if not image_name:
             # 模拟扫描结果
+            # 注意：这是测试数据，因为没有配置镜像名称
+            print(f"[Container] 警告: 未配置镜像名称，返回模拟数据")
             results.append({
                 'severity': 'critical',
                 'type': 'Vulnerability',
-                'title': 'CVE-2023-67890: 容器镜像漏洞',
-                'description': '检测到容器镜像中存在安全漏洞',
+                'title': 'CVE-2023-67890: 容器镜像漏洞（模拟数据）',
+                'description': '检测到容器镜像中存在安全漏洞。注意：这是测试数据，因为未配置镜像名称。请在扫描配置中填写 {"image_name": "your-image:tag"}。',
                 'file_path': '',
                 'line_number': None,
                 'cve_id': 'CVE-2023-67890',
                 'package_name': 'vulnerable-package',
                 'package_version': '2.0.0',
                 'fixed_version': '2.1.0',
-                'raw_data': {}
+                'raw_data': {'is_mock': True, 'reason': 'image_name_not_configured'}
             })
         else:
             try:

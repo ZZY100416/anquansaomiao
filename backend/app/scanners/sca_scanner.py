@@ -12,18 +12,20 @@ class SCAScanner:
         
         if not os.path.exists(project_path):
             # 模拟扫描结果
+            # 注意：这是测试数据，因为项目文件不存在
+            print(f"[SCA] 警告: 项目路径不存在 {project_path}，返回模拟数据")
             results.append({
                 'severity': 'high',
                 'type': 'CVE',
-                'title': 'CVE-2023-12345: 依赖库漏洞',
-                'description': '检测到依赖库存在已知安全漏洞',
+                'title': 'CVE-2023-12345: 依赖库漏洞（模拟数据）',
+                'description': '检测到依赖库存在已知安全漏洞。注意：这是测试数据，因为项目文件不存在。请上传项目代码到 /app/uploaded_files/project_{project_id} 目录。',
                 'file_path': '',
                 'line_number': None,
                 'cve_id': 'CVE-2023-12345',
                 'package_name': 'vulnerable-package',
                 'package_version': '1.0.0',
                 'fixed_version': '1.2.0',
-                'raw_data': {}
+                'raw_data': {'is_mock': True, 'reason': 'project_path_not_found', 'path': project_path}
             })
         else:
             try:
