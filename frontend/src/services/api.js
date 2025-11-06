@@ -35,13 +35,26 @@ api.interceptors.response.use(
     }
     // 处理422 token验证失败错误
     if (error.response?.status === 422) {
-      const errorMsg = error.response?.data?.error || 'Token验证失败';
-      console.error('JWT验证失败:', errorMsg);
-      // 如果是token相关错误，清除token并跳转登录
-      if (errorMsg.includes('Token') || errorMsg.includes('token')) {
+      const errorMsg = error.response?.data?.error || '';
+      console.error('收到422错误:', errorMsg);
+      
+      // 只有明确的token错误才清除token
+      const isTokenError = errorMsg.includes('Token') || 
+                          errorMsg.includes('token') || 
+                          errorMsg.includes('无效的Token') ||
+                          errorMsg.includes('无效的') ||
+                          errorMsg.toLowerCase().includes('invalid token');
+      
+      if (isTokenError) {
+        console.error('JWT验证失败，清除token:', errorMsg);
         localStorage.removeItem('token');
         localStorage.removeItem('user');
+        // 触发认证状态变化事件
+        window.dispatchEvent(new Event('authChange'));
         window.location.href = '/login';
+      } else {
+        // 其他422错误（可能是业务逻辑错误），只记录日志，不跳转
+        console.warn('422错误（非token错误）:', errorMsg);
       }
     }
     return Promise.reject(error);

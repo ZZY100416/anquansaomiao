@@ -19,7 +19,9 @@ function App() {
   // 监听localStorage变化，更新认证状态
   useEffect(() => {
     const checkAuth = () => {
-      const authenticated = !!localStorage.getItem('token');
+      const token = localStorage.getItem('token');
+      const authenticated = !!token;
+      console.log('检查认证状态:', authenticated ? '已认证' : '未认证', token ? 'Token存在' : 'Token不存在');
       setAuthState(authenticated);
     };
 
@@ -32,12 +34,13 @@ function App() {
     // 监听自定义事件（同标签页登录/登出）
     const handleAuthChange = () => {
       // 立即检查并更新状态
+      console.log('收到authChange事件，更新认证状态');
       checkAuth();
     };
     window.addEventListener('authChange', handleAuthChange);
 
     // 定期检查（降低频率，避免过于频繁）
-    const interval = setInterval(checkAuth, 2000);
+    const interval = setInterval(checkAuth, 3000);
 
     return () => {
       window.removeEventListener('storage', checkAuth);

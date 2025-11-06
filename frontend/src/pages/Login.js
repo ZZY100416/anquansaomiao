@@ -11,7 +11,21 @@ const Login = () => {
   const onFinish = async (values) => {
     setLoading(true);
     try {
-      await authService.login(values.username, values.password);
+      const response = await authService.login(values.username, values.password);
+      
+      // 确保token已保存
+      if (response && response.access_token) {
+        localStorage.setItem('token', response.access_token);
+        localStorage.setItem('user', JSON.stringify(response.user));
+      }
+      
+      // 验证token是否已保存
+      const token = localStorage.getItem('token');
+      if (!token) {
+        message.error('登录失败：Token未保存');
+        return;
+      }
+      
       message.success('登录成功');
       
       // 触发认证状态变化事件，让App.js更新状态
@@ -20,9 +34,10 @@ const Login = () => {
       // 延迟一下确保状态更新，然后跳转
       setTimeout(() => {
         navigate('/dashboard', { replace: true });
-      }, 100);
+      }, 200);
     } catch (error) {
-      message.error(error.response?.data?.error || '登录失败');
+      console.error('登录错误:', error);
+      message.error(error.response?.data?.error || error.message || '登录失败');
     } finally {
       setLoading(false);
     }
