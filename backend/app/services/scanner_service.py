@@ -17,6 +17,7 @@ class ScannerService:
         self.rasp_scanner = RASPScanner()
     
     def start_scan(self, scan_id):
+        import sys
         scan = Scan.query.get(scan_id)
         if not scan:
             raise ValueError(f"扫描任务 {scan_id} 不存在")
@@ -24,6 +25,8 @@ class ScannerService:
         scan.status = 'running'
         scan.started_at = datetime.utcnow()
         db.session.commit()
+        
+        print(f'[ScannerService] 开始执行扫描: scan_id={scan_id}, type={scan.scan_type}', file=sys.stderr)
         
         try:
             if scan.scan_type == 'sast':
@@ -37,29 +40,42 @@ class ScannerService:
             else:
                 raise ValueError(f"不支持的扫描类型: {scan.scan_type}")
             
+            print(f'[ScannerService] 扫描器返回 {len(results)} 个结果', file=sys.stderr)
+            
             # 保存扫描结果
+            saved_count = 0
             for result_data in results:
-                result = ScanResult(
-                    scan_id=scan_id,
-                    severity=result_data.get('severity', 'info'),
-                    vulnerability_type=result_data.get('type', ''),
-                    title=result_data.get('title', ''),
-                    description=result_data.get('description', ''),
-                    file_path=result_data.get('file_path', ''),
-                    line_number=result_data.get('line_number'),
-                    cve_id=result_data.get('cve_id', ''),
-                    package_name=result_data.get('package_name', ''),
-                    package_version=result_data.get('package_version', ''),
-                    fixed_version=result_data.get('fixed_version', ''),
-                    raw_data=json.dumps(result_data.get('raw_data', {}))
-                )
-                db.session.add(result)
+                try:
+                    result = ScanResult(
+                        scan_id=scan_id,
+                        severity=result_data.get('severity', 'info'),
+                        vulnerability_type=result_data.get('type', ''),
+                        title=result_data.get('title', ''),
+                        description=result_data.get('description', ''),
+                        file_path=result_data.get('file_path', ''),
+                        line_number=result_data.get('line_number'),
+                        cve_id=result_data.get('cve_id', ''),
+                        package_name=result_data.get('package_name', ''),
+                        package_version=result_data.get('package_version', ''),
+                        fixed_version=result_data.get('fixed_version', ''),
+                        raw_data=json.dumps(result_data.get('raw_data', {}))
+                    )
+                    db.session.add(result)
+                    saved_count += 1
+                except Exception as e:
+                    print(f'[ScannerService] 保存结果失败: {str(e)}, result_data={result_data}', file=sys.stderr)
+            
+            db.session.commit()
+            print(f'[ScannerService] 成功保存 {saved_count} 个扫描结果', file=sys.stderr)
             
             scan.status = 'completed'
             scan.completed_at = datetime.utcnow()
             db.session.commit()
             
         except Exception as e:
+            import traceback
+            print(f'[ScannerService] 扫描执行失败: {str(e)}', file=sys.stderr)
+            print(f'[ScannerService] 错误堆栈: {traceback.format_exc()}', file=sys.stderr)
             scan.status = 'failed'
             scan.completed_at = datetime.utcnow()
             db.session.commit()

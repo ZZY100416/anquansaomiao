@@ -26,24 +26,58 @@ class SASTScanner:
             })
         else:
             try:
+                import sys
+                print(f'[SAST] 开始扫描项目: {project_path}', file=sys.stderr)
+                
+                # 检查Semgrep是否安装
+                check_cmd = ['semgrep', '--version']
+                check_result = subprocess.run(check_cmd, capture_output=True, text=True, timeout=10)
+                if check_result.returncode != 0:
+                    print(f'[SAST] 警告: Semgrep未安装或不可用', file=sys.stderr)
+                    print(f'[SAST] 错误输出: {check_result.stderr}', file=sys.stderr)
+                
                 # 执行Semgrep扫描
-                cmd = ['semgrep', '--json', '--config=auto', project_path]
+                # 使用auto和security-audit配置，检测更多安全问题
+                cmd = ['semgrep', '--json', '--config=auto', '--config=p/security-audit', project_path]
+                print(f'[SAST] 执行命令: {" ".join(cmd)}', file=sys.stderr)
+                
                 result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
                 
+                print(f'[SAST] Semgrep返回码: {result.returncode}', file=sys.stderr)
+                if result.stderr:
+                    print(f'[SAST] Semgrep错误输出: {result.stderr[:500]}', file=sys.stderr)
+                
                 if result.returncode == 0:
-                    semgrep_results = json.loads(result.stdout)
-                    for issue in semgrep_results.get('results', []):
-                        results.append({
-                            'severity': self._map_severity(issue.get('extra', {}).get('severity', 'INFO')),
-                            'type': issue.get('check_id', ''),
-                            'title': issue.get('message', ''),
-                            'description': issue.get('extra', {}).get('message', ''),
-                            'file_path': issue.get('path', ''),
-                            'line_number': issue.get('start', {}).get('line', 0),
-                            'raw_data': issue
-                        })
+                    try:
+                        semgrep_results = json.loads(result.stdout)
+                        issue_count = len(semgrep_results.get('results', []))
+                        print(f'[SAST] Semgrep扫描完成，发现 {issue_count} 个问题', file=sys.stderr)
+                        
+                        for issue in semgrep_results.get('results', []):
+                            results.append({
+                                'severity': self._map_severity(issue.get('extra', {}).get('severity', 'INFO')),
+                                'type': issue.get('check_id', ''),
+                                'title': issue.get('message', ''),
+                                'description': issue.get('extra', {}).get('message', ''),
+                                'file_path': issue.get('path', ''),
+                                'line_number': issue.get('start', {}).get('line', 0),
+                                'raw_data': issue
+                            })
+                    except json.JSONDecodeError as e:
+                        print(f'[SAST] 解析Semgrep JSON输出失败: {str(e)}', file=sys.stderr)
+                        print(f'[SAST] 输出内容（前500字符）: {result.stdout[:500]}', file=sys.stderr)
+                else:
+                    print(f'[SAST] Semgrep扫描失败，返回码: {result.returncode}', file=sys.stderr)
+                    print(f'[SAST] 错误输出: {result.stderr}', file=sys.stderr)
+                    
+            except subprocess.TimeoutExpired:
+                print(f'[SAST] Semgrep扫描超时（超过300秒）', file=sys.stderr)
             except Exception as e:
-                print(f"Semgrep扫描失败: {str(e)}")
+                import traceback
+                print(f'[SAST] Semgrep扫描异常: {str(e)}', file=sys.stderr)
+                print(f'[SAST] 错误堆栈: {traceback.format_exc()}', file=sys.stderr)
+        
+        print(f'[SAST] 扫描完成，共返回 {len(results)} 个结果', file=sys.stderr)
         
         return results
     
