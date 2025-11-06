@@ -58,54 +58,47 @@ class RASPScanner:
                 headers['Authorization'] = f'Bearer {self.rasp_api_key}'
             
             # 获取事件列表
-            # 根据OpenRASP文档，尝试不同的API路径
-            # OpenRASP的API通常是 /api/v1/xxx 格式
+            # 从Network标签找到正确的API路径：/v1/api/log/attack/search (POST方法)
             base = self.rasp_api_url.rstrip('/')
-            api_paths = [
-                f'{base}/api/v1/attack',  # 攻击事件API（最常见）
-                f'{base}/api/v1/attack/list',  # 攻击事件列表
-                f'{base}/api/v1/event',  # 事件API
-                f'{base}/api/v1/event/list',  # 事件列表
-                f'{base}/api/attack',  # 简化路径
-                f'{base}/api/events',  # 事件API
-                f'{base}/api/v1/events',  # v1事件API
-                f'{base}/events',  # 直接路径
-            ]
+            api_path = f'{base}/v1/api/log/attack/search'
             
-            response = None
-            successful_path = None
-            for api_path in api_paths:
-                try:
-                    import sys
-                    print(f"[RASP] 尝试API路径: {api_path}", file=sys.stderr)
-                    # 尝试GET请求
-                    response = requests.get(api_path, headers=headers, timeout=10)
-                    print(f"[RASP] GET请求返回状态码 {response.status_code}: {api_path}", file=sys.stderr)
+            import sys
+            print(f"[RASP] 使用API路径: {api_path} (POST方法)", file=sys.stderr)
+            
+            # OpenRASP的API使用POST方法，需要传递查询参数
+            # 根据OpenRASP的API，可能需要传递分页、过滤等参数
+            request_data = {
+                'page': 1,
+                'size': 100,  # 获取前100条记录
+                # 可以根据扫描配置添加更多过滤条件
+            }
+            
+            try:
+                # 使用POST请求
+                response = requests.post(
+                    api_path,
+                    headers=headers,
+                    json=request_data,
+                    timeout=30
+                )
+                print(f"[RASP] POST请求返回状态码: {response.status_code}", file=sys.stderr)
+                
+                if response.status_code != 200:
+                    print(f"[RASP] API请求失败，状态码: {response.status_code}", file=sys.stderr)
+                    print(f"[RASP] 响应内容: {response.text[:500]}", file=sys.stderr)
+                    # 如果失败，尝试不带参数的POST
+                    print(f"[RASP] 尝试不带参数的POST请求", file=sys.stderr)
+                    response = requests.post(api_path, headers=headers, json={}, timeout=30)
+                    print(f"[RASP] 第二次POST请求返回状态码: {response.status_code}", file=sys.stderr)
                     
-                    if response.status_code == 200:
-                        print(f"[RASP] API路径成功: {api_path}", file=sys.stderr)
-                        successful_path = api_path
-                        break
-                    elif response.status_code == 405:  # Method Not Allowed，可能需要POST
-                        print(f"[RASP] GET方法不允许，尝试POST: {api_path}", file=sys.stderr)
-                        # 尝试POST请求（可能需要参数）
-                        post_response = requests.post(
-                            api_path,
-                            headers=headers,
-                            json={},  # 空JSON body
-                            timeout=10
-                        )
-                        if post_response.status_code == 200:
-                            print(f"[RASP] POST请求成功: {api_path}", file=sys.stderr)
-                            response = post_response
-                            successful_path = api_path
-                            break
-                except requests.exceptions.ConnectionError as e:
-                    print(f"[RASP] 连接错误: {api_path}, 错误: {str(e)}", file=sys.stderr)
-                    continue
-                except Exception as e:
-                    print(f"[RASP] API路径失败: {api_path}, 错误: {str(e)}", file=sys.stderr)
-                    continue
+            except requests.exceptions.ConnectionError as e:
+                print(f"[RASP] 连接错误: {str(e)}", file=sys.stderr)
+                response = None
+            except Exception as e:
+                print(f"[RASP] API请求异常: {str(e)}", file=sys.stderr)
+                import traceback
+                print(f"[RASP] 错误堆栈: {traceback.format_exc()}", file=sys.stderr)
+                response = None
             
             if not response or response.status_code != 200:
                 import sys
@@ -131,31 +124,61 @@ class RASPScanner:
             
             if response.status_code == 200:
                 data = response.json()
-                events = data.get('data', [])
+                import sys
+                print(f"[RASP] API响应数据结构: {type(data)}, 键: {list(data.keys()) if isinstance(data, dict) else 'N/A'}", file=sys.stderr)
+                print(f"[RASP] API响应数据预览: {str(data)[:500]}", file=sys.stderr)
+                
+                # OpenRASP的响应格式可能是 data.data 或 data.list 或直接是数组
+                events = []
+                if isinstance(data, dict):
+                    # 尝试不同的数据字段
+                    if 'data' in data:
+                        events = data.get('data', [])
+                        if isinstance(events, dict) and 'list' in events:
+                            events = events.get('list', [])
+                    elif 'list' in data:
+                        events = data.get('list', [])
+                    elif 'result' in data:
+                        events = data.get('result', [])
+                        if isinstance(events, dict) and 'data' in events:
+                            events = events.get('data', [])
+                    elif 'items' in data:
+                        events = data.get('items', [])
+                elif isinstance(data, list):
+                    events = data
+                
+                print(f"[RASP] 解析到 {len(events)} 个事件", file=sys.stderr)
                 
                 for event in events:
+                    # OpenRASP事件字段可能不同，需要适配
+                    attack_type = event.get('attack_type') or event.get('type') or event.get('attackType') or 'RASP Event'
+                    message = event.get('message') or event.get('alert_message') or event.get('alertMessage') or '运行时安全事件'
+                    severity = event.get('severity') or event.get('level') or 'medium'
+                    
                     results.append({
-                        'severity': self._map_severity(event.get('severity', 'medium')),
-                        'type': event.get('type', 'RASP Event'),
-                        'title': event.get('message', '运行时安全事件'),
-                        'description': event.get('description', ''),
-                        'file_path': event.get('file_path', ''),
-                        'line_number': event.get('line_number'),
+                        'severity': self._map_severity(severity),
+                        'type': attack_type,
+                        'title': message,
+                        'description': event.get('description') or event.get('detail') or '',
+                        'file_path': event.get('file_path') or event.get('filePath') or '',
+                        'line_number': event.get('line_number') or event.get('lineNumber'),
                         'cve_id': '',
                         'package_name': '',
                         'package_version': '',
                         'fixed_version': '',
                         'raw_data': {
-                            'event_id': event.get('id'),
-                            'app_id': event.get('app_id'),
-                            'timestamp': event.get('timestamp'),
-                            'attack_type': event.get('attack_type'),
-                            'attack_params': event.get('attack_params'),
-                            'stack_trace': event.get('stack_trace'),
-                            'request_id': event.get('request_id'),
-                            'url': event.get('url'),
-                            'user_agent': event.get('user_agent'),
-                            'client_ip': event.get('client_ip')
+                            'event_id': event.get('id') or event.get('_id'),
+                            'app_id': event.get('app_id') or event.get('appId'),
+                            'timestamp': event.get('timestamp') or event.get('time') or event.get('request_time'),
+                            'attack_type': attack_type,
+                            'attack_params': event.get('attack_params') or event.get('attackParams'),
+                            'stack_trace': event.get('stack_trace') or event.get('stackTrace'),
+                            'request_id': event.get('request_id') or event.get('requestId'),
+                            'url': event.get('url') or event.get('request_url'),
+                            'user_agent': event.get('user_agent') or event.get('userAgent'),
+                            'client_ip': event.get('client_ip') or event.get('clientIp') or event.get('request_source'),
+                            'intercept_state': event.get('intercept_state') or event.get('interceptState'),
+                            'original_event': event  # 保存原始事件数据
                         }
                     })
             else:
