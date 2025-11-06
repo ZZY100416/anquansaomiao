@@ -36,15 +36,13 @@ def generate_report(scan_id):
 @bp.route('/dashboard', methods=['GET'])
 @jwt_required()
 def get_dashboard():
-    import logging
-    logger = logging.getLogger(__name__)
     from flask import request
-    
-    # 调试：记录请求信息
-    logger.info(f'Dashboard请求 - Authorization头: {request.headers.get("Authorization", "未找到")}')
+    import sys
+    # 直接输出到stderr，确保能看到日志
+    print(f'[Dashboard] 请求到达 - Authorization头: {request.headers.get("Authorization", "未找到")}', file=sys.stderr)
     
     user_id = get_jwt_identity()
-    logger.info(f'Dashboard请求 - User ID: {user_id}')
+    print(f'[Dashboard] User ID: {user_id}', file=sys.stderr)
     
     # 获取用户所有项目
     projects = Project.query.filter_by(user_id=user_id).all()
