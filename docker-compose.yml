@@ -32,6 +32,9 @@ services:
       - FLASK_ENV=production
       - SECRET_KEY=your-secret-key-change-in-production
       - OPENRASP_API_URL=${OPENRASP_API_URL:-http://192.168.203.141:8086}
+      - OPENRASP_AUTH_COOKIE=${OPENRASP_AUTH_COOKIE:-}
+      - OPENRASP_USERNAME=${OPENRASP_USERNAME:-openrasp}
+      - OPENRASP_PASSWORD=${OPENRASP_PASSWORD:-zzy100416}
       - OPENRASP_API_KEY=${OPENRASP_API_KEY:-}
     volumes:
       - ./backend:/app

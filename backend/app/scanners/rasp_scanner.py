@@ -11,19 +11,27 @@ class RASPScanner:
     
     def __init__(self):
         # OpenRASP管理后台API地址（从环境变量或配置读取）
-        # 注意：OpenRASP的API路径可能不是/api，需要根据实际文档调整
         # 默认地址：http://192.168.203.141:8086
         base_url = os.getenv('OPENRASP_API_URL', 'http://192.168.203.141:8086')
-        # 如果URL已经包含/api，直接使用；否则尝试不同的API路径
-        if '/api' in base_url:
-            self.rasp_api_url = base_url
-        else:
-            # 尝试不同的API路径
-            self.rasp_api_url = base_url.rstrip('/')
-        self.rasp_api_key = os.getenv('OPENRASP_API_KEY', '')
+        self.rasp_api_url = base_url.rstrip('/')
+        
+        # OpenRASP使用Cookie认证（RASP_AUTH_ID），而不是API Key
+        # 可以通过环境变量配置Cookie，或者通过登录API获取
+        self.rasp_auth_cookie = os.getenv('OPENRASP_AUTH_COOKIE', '')
+        self.rasp_api_key = os.getenv('OPENRASP_API_KEY', '')  # 保留兼容性
+        
+        # 如果配置了用户名密码，可以通过登录获取Cookie
+        self.rasp_username = os.getenv('OPENRASP_USERNAME', '')
+        self.rasp_password = os.getenv('OPENRASP_PASSWORD', '')
+        
         import sys
-        print(f"[RASP] OpenRASP基础地址: {base_url}", file=sys.stderr)
-        print(f"[RASP] OpenRASP API地址: {self.rasp_api_url}", file=sys.stderr)
+        print(f"[RASP] OpenRASP基础地址: {self.rasp_api_url}", file=sys.stderr)
+        if self.rasp_auth_cookie:
+            print(f"[RASP] 已配置Cookie认证", file=sys.stderr)
+        elif self.rasp_username and self.rasp_password:
+            print(f"[RASP] 已配置用户名密码，将尝试登录获取Cookie", file=sys.stderr)
+        else:
+            print(f"[RASP] 警告: 未配置认证信息，API调用可能失败", file=sys.stderr)
     
     def scan(self, scan):
         """
@@ -37,41 +45,190 @@ class RASPScanner:
         start_time = config.get('start_time', '')
         end_time = config.get('end_time', '')
         
-        if not app_id:
-            # 如果没有指定app_id，尝试获取所有应用的事件
-            results.extend(self._get_all_events())
-        else:
-            # 获取指定应用的事件
-            results.extend(self._get_app_events(app_id, start_time, end_time))
+        # 统一使用_get_all_events，它支持app_id参数
+        results.extend(self._get_all_events(app_id, start_time, end_time))
         
         return results
     
-    def _get_all_events(self):
-        """获取所有应用的RASP事件"""
+    def _get_auth_cookie(self):
+        """通过登录获取OpenRASP的认证Cookie"""
+        if not self.rasp_username or not self.rasp_password:
+            return None
+        
+        try:
+            import sys
+            # 尝试不同的登录API路径
+            login_paths = [
+                f'{self.rasp_api_url}/v1/api/user/login',
+                f'{self.rasp_api_url}/api/user/login',
+                f'{self.rasp_api_url}/v1/api/login',
+                f'{self.rasp_api_url}/api/login',
+            ]
+            
+            login_data = {
+                'username': self.rasp_username,
+                'password': self.rasp_password
+            }
+            
+            for login_url in login_paths:
+                try:
+                    print(f"[RASP] 尝试登录获取Cookie: {login_url}", file=sys.stderr)
+                    
+                    response = requests.post(
+                        login_url,
+                        json=login_data,
+                        headers={'Content-Type': 'application/json'},
+                        timeout=10
+                    )
+                    
+                    print(f"[RASP] 登录响应状态码: {response.status_code}", file=sys.stderr)
+                    
+                    if response.status_code == 200:
+                        # 从响应头中提取Cookie（Set-Cookie）
+                        set_cookie_header = response.headers.get('Set-Cookie', '')
+                        if 'RASP_AUTH_ID' in set_cookie_header:
+                            # 从Set-Cookie头中提取RASP_AUTH_ID的值
+                            import re
+                            match = re.search(r'RASP_AUTH_ID=([^;]+)', set_cookie_header)
+                            if match:
+                                auth_cookie_value = match.group(1)
+                                print(f"[RASP] 登录成功，获取到Cookie: RASP_AUTH_ID={auth_cookie_value[:20]}...", file=sys.stderr)
+                                return f'RASP_AUTH_ID={auth_cookie_value}'
+                        
+                        # 也尝试从cookies对象中获取
+                        cookies = response.cookies
+                        auth_cookie = cookies.get('RASP_AUTH_ID')
+                        if auth_cookie:
+                            print(f"[RASP] 登录成功，从cookies对象获取到Cookie", file=sys.stderr)
+                            return f'RASP_AUTH_ID={auth_cookie}'
+                        
+                        # 如果响应是JSON，可能Cookie在响应体中
+                        try:
+                            response_data = response.json()
+                            print(f"[RASP] 登录响应数据: {response_data}", file=sys.stderr)
+                            # 某些API可能返回token而不是Cookie
+                            if 'token' in response_data:
+                                print(f"[RASP] 提示: API返回token而不是Cookie，可能需要使用token认证", file=sys.stderr)
+                        except:
+                            pass
+                        
+                        print(f"[RASP] 登录成功但未找到Cookie，响应头: {dict(response.headers)}", file=sys.stderr)
+                    else:
+                        print(f"[RASP] 登录失败，状态码: {response.status_code}, 响应: {response.text[:200]}", file=sys.stderr)
+                        if response.status_code == 404:
+                            continue  # 尝试下一个路径
+                except Exception as e:
+                    print(f"[RASP] 登录路径 {login_url} 异常: {str(e)}", file=sys.stderr)
+                    continue
+            
+            print(f"[RASP] 所有登录路径都失败", file=sys.stderr)
+        except Exception as e:
+            import sys
+            import traceback
+            print(f"[RASP] 登录异常: {str(e)}", file=sys.stderr)
+            print(f"[RASP] 错误堆栈: {traceback.format_exc()}", file=sys.stderr)
+        
+        return None
+    
+    def _get_all_events(self, app_id='', start_time='', end_time=''):
+        """获取RASP事件（支持指定app_id或获取所有应用的事件）"""
         results = []
         
         try:
             # 调用OpenRASP API获取事件列表
-            # 注意：这里需要根据实际的OpenRASP API文档调整
-            headers = {}
-            if self.rasp_api_key:
-                headers['Authorization'] = f'Bearer {self.rasp_api_key}'
-            
-            # 获取事件列表
             # 从Network标签找到正确的API路径：/v1/api/log/attack/search (POST方法)
             base = self.rasp_api_url.rstrip('/')
             api_path = f'{base}/v1/api/log/attack/search'
             
             import sys
             print(f"[RASP] 使用API路径: {api_path} (POST方法)", file=sys.stderr)
+            if app_id:
+                print(f"[RASP] 指定app_id: {app_id}", file=sys.stderr)
+            else:
+                print(f"[RASP] 获取所有应用的事件", file=sys.stderr)
             
-            # OpenRASP的API使用POST方法，需要传递查询参数
-            # 根据OpenRASP的API，可能需要传递分页、过滤等参数
-            request_data = {
-                'page': 1,
-                'size': 100,  # 获取前100条记录
-                # 可以根据扫描配置添加更多过滤条件
+            # 设置请求头（根据Network标签中的请求头）
+            headers = {
+                'Content-Type': 'application/json;charset=UTF-8',
+                'Accept': 'application/json, text/plain, */*',
+                'Origin': self.rasp_api_url,
+                'Referer': f'{self.rasp_api_url}/',
             }
+            
+            # 获取认证Cookie
+            auth_cookie = self.rasp_auth_cookie
+            if not auth_cookie and self.rasp_username and self.rasp_password:
+                auth_cookie = self._get_auth_cookie()
+            
+            # 如果配置了Cookie，添加到请求头
+            if auth_cookie:
+                headers['Cookie'] = auth_cookie
+                print(f"[RASP] 使用Cookie认证", file=sys.stderr)
+            elif self.rasp_api_key:
+                # 兼容API Key方式（如果支持）
+                headers['Authorization'] = f'Bearer {self.rasp_api_key}'
+                headers['X-OpenRASP-Token'] = self.rasp_api_key
+                print(f"[RASP] 使用API Key认证", file=sys.stderr)
+            else:
+                print(f"[RASP] 警告: 未配置认证信息", file=sys.stderr)
+            
+            print(f"[RASP] 请求头: {dict(headers)}", file=sys.stderr)
+            
+            # OpenRASP的API使用POST方法，请求格式根据Payload标签确定
+            # 需要传递 data 对象和分页参数
+            import time
+            from datetime import datetime, timedelta
+            
+            # 计算时间范围（默认最近30天）
+            end_time_ms = int(time.time() * 1000)  # 当前时间（毫秒）
+            start_time_ms = int((time.time() - 30 * 24 * 3600) * 1000)  # 30天前（毫秒）
+            
+            # 如果配置了时间范围，使用配置的时间
+            if start_time:
+                try:
+                    # 支持多种时间格式
+                    if isinstance(start_time, str):
+                        dt = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
+                        start_time_ms = int(dt.timestamp() * 1000)
+                    else:
+                        start_time_ms = int(start_time)
+                except:
+                    pass
+            
+            if end_time:
+                try:
+                    if isinstance(end_time, str):
+                        dt = datetime.fromisoformat(end_time.replace('Z', '+00:00'))
+                        end_time_ms = int(dt.timestamp() * 1000)
+                    else:
+                        end_time_ms = int(end_time)
+                except:
+                    pass
+            
+            # 构建请求数据（根据Payload标签的格式）
+            request_data = {
+                'data': {
+                    'start_time': start_time_ms,
+                    'end_time': end_time_ms,
+                    'attack_type': [],  # 空数组表示获取所有攻击类型
+                    'attack_source': '',
+                    'app_id': app_id if app_id else '',  # 如果指定了app_id，使用它；否则为空获取所有应用
+                    'url': '',
+                    'header': '',
+                    'request_id': '',
+                    'request_method': '',
+                    'intercept_state': ['block', 'log'],  # 获取拦截和记录的事件
+                    'plugin_message': '',
+                    'plugin_algorithm': '',
+                    'server_hostname': '',
+                    'stack_md5': '',
+                    'stack': ''
+                },
+                'page': 1,
+                'perpage': 100  # 每页100条记录
+            }
+            
+            print(f"[RASP] 请求参数: {json.dumps(request_data, indent=2)}", file=sys.stderr)
             
             try:
                 # 使用POST请求
@@ -86,10 +243,18 @@ class RASPScanner:
                 if response.status_code != 200:
                     print(f"[RASP] API请求失败，状态码: {response.status_code}", file=sys.stderr)
                     print(f"[RASP] 响应内容: {response.text[:500]}", file=sys.stderr)
-                    # 如果失败，尝试不带参数的POST
-                    print(f"[RASP] 尝试不带参数的POST请求", file=sys.stderr)
-                    response = requests.post(api_path, headers=headers, json={}, timeout=30)
-                    print(f"[RASP] 第二次POST请求返回状态码: {response.status_code}", file=sys.stderr)
+                    
+                    # 如果返回401/403，可能需要认证
+                    if response.status_code in [401, 403]:
+                        print(f"[RASP] 提示: 可能需要认证，请检查OPENRASP_API_KEY配置", file=sys.stderr)
+                    
+                    # 如果返回404，可能是路径不对或需要不同的参数
+                    if response.status_code == 404:
+                        print(f"[RASP] 提示: API路径可能不正确，或需要特定的请求参数", file=sys.stderr)
+                        # 尝试不带参数的POST
+                        print(f"[RASP] 尝试不带参数的POST请求", file=sys.stderr)
+                        response = requests.post(api_path, headers=headers, json={}, timeout=30)
+                        print(f"[RASP] 第二次POST请求返回状态码: {response.status_code}", file=sys.stderr)
                     
             except requests.exceptions.ConnectionError as e:
                 print(f"[RASP] 连接错误: {str(e)}", file=sys.stderr)
@@ -102,22 +267,24 @@ class RASPScanner:
             
             if not response or response.status_code != 200:
                 import sys
-                print(f"[RASP] 所有API路径都失败，返回模拟数据", file=sys.stderr)
-                print(f"[RASP] 提示: 请查看OpenRASP文档确认正确的API路径", file=sys.stderr)
+                print(f"[RASP] API请求失败，返回模拟数据", file=sys.stderr)
+                print(f"[RASP] 提示: 请检查认证信息（Cookie）和API路径", file=sys.stderr)
+                print(f"[RASP] API路径: {api_path}", file=sys.stderr)
                 print(f"[RASP] 文档地址: https://rasp.baidu.com/doc/install/main.html", file=sys.stderr)
                 results.append({
                     'severity': 'info',
                     'type': 'RASP Connection',
                     'title': 'OpenRASP API连接失败（模拟数据）',
-                    'description': f'无法连接到OpenRASP API。请检查API地址和路径是否正确。\n尝试的路径: {api_paths}\n请参考OpenRASP文档: https://rasp.baidu.com/doc/install/main.html\n或者查看OpenRASP管理后台的API文档。',
+                    'description': f'无法连接到OpenRASP API。请检查：\n1. Cookie认证是否正确配置（OPENRASP_AUTH_COOKIE）\n2. API路径是否正确: {api_path}\n3. 网络连接是否正常\n请参考OpenRASP文档: https://rasp.baidu.com/doc/install/main.html',
                     'file_path': '',
                     'line_number': None,
                     'raw_data': {
                         'is_mock': True,
                         'reason': 'rasp_api_failed',
-                        'api_urls': api_paths,
+                        'api_url': api_path,
                         'base_url': self.rasp_api_url,
-                        'note': '请查看OpenRASP API文档确认正确的API端点'
+                        'status_code': response.status_code if response else 'No response',
+                        'note': '请检查OpenRASP认证和API配置'
                     }
                 })
                 return results
