@@ -162,47 +162,78 @@ class SCAScanner:
         
         print(f'[SCA] 开始检查项目类型...', file=sys.stderr)
         
-        # 检查项目中的关键文件
-        requirements_txt = os.path.join(project_path, 'requirements.txt')
-        setup_py = os.path.join(project_path, 'setup.py')
-        pyproject_toml = os.path.join(project_path, 'pyproject.toml')
-        package_json = os.path.join(project_path, 'package.json')
-        pom_xml = os.path.join(project_path, 'pom.xml')
-        build_gradle = os.path.join(project_path, 'build.gradle')
+        # 递归查找项目中的关键文件（可能在子目录中）
+        def find_file(filename, max_depth=3):
+            """递归查找文件，最多查找3层深度"""
+            for root, dirs, files in os.walk(project_path):
+                # 计算深度
+                depth = root[len(project_path):].count(os.sep)
+                if depth > max_depth:
+                    dirs.clear()  # 不继续深入
+                    continue
+                
+                # 跳过一些目录
+                dirs[:] = [d for d in dirs if d not in ['.git', 'node_modules', 'target', 'dist', 'build', '__pycache__']]
+                
+                if filename in files:
+                    return os.path.join(root, filename)
+            return None
         
-        print(f'[SCA] 检查文件：', file=sys.stderr)
-        print(f'[SCA]   requirements.txt: {os.path.exists(requirements_txt)}', file=sys.stderr)
-        print(f'[SCA]   setup.py: {os.path.exists(setup_py)}', file=sys.stderr)
-        print(f'[SCA]   pyproject.toml: {os.path.exists(pyproject_toml)}', file=sys.stderr)
-        print(f'[SCA]   package.json: {os.path.exists(package_json)}', file=sys.stderr)
-        print(f'[SCA]   pom.xml: {os.path.exists(pom_xml)}', file=sys.stderr)
-        print(f'[SCA]   build.gradle: {os.path.exists(build_gradle)}', file=sys.stderr)
+        # 查找依赖文件
+        requirements_txt = find_file('requirements.txt')
+        setup_py = find_file('setup.py')
+        pyproject_toml = find_file('pyproject.toml')
+        package_json = find_file('package.json')
+        pom_xml = find_file('pom.xml')
+        build_gradle = find_file('build.gradle')
+        
+        print(f'[SCA] 检查文件（递归查找）：', file=sys.stderr)
+        print(f'[SCA]   requirements.txt: {requirements_txt if requirements_txt else "未找到"}', file=sys.stderr)
+        print(f'[SCA]   setup.py: {setup_py if setup_py else "未找到"}', file=sys.stderr)
+        print(f'[SCA]   pyproject.toml: {pyproject_toml if pyproject_toml else "未找到"}', file=sys.stderr)
+        print(f'[SCA]   package.json: {package_json if package_json else "未找到"}', file=sys.stderr)
+        print(f'[SCA]   pom.xml: {pom_xml if pom_xml else "未找到"}', file=sys.stderr)
+        print(f'[SCA]   build.gradle: {build_gradle if build_gradle else "未找到"}', file=sys.stderr)
         
         # 1. Python项目 - 使用pip-audit
-        if os.path.exists(requirements_txt) or os.path.exists(setup_py) or os.path.exists(pyproject_toml):
+        if requirements_txt or setup_py or pyproject_toml:
             print(f'[SCA] ✓ 检测到Python项目，尝试使用pip-audit扫描...', file=sys.stderr)
-            python_results = self._scan_python_dependencies(project_path)
+            # 使用找到依赖文件的目录作为扫描目录
+            scan_dir = project_path
+            if requirements_txt:
+                scan_dir = os.path.dirname(requirements_txt)
+            elif setup_py:
+                scan_dir = os.path.dirname(setup_py)
+            elif pyproject_toml:
+                scan_dir = os.path.dirname(pyproject_toml)
+            print(f'[SCA] Python项目扫描目录: {scan_dir}', file=sys.stderr)
+            python_results = self._scan_python_dependencies(scan_dir)
             print(f'[SCA] Python扫描返回 {len(python_results)} 个结果', file=sys.stderr)
             results.extend(python_results)
         else:
             print(f'[SCA] ✗ 未检测到Python项目文件', file=sys.stderr)
         
         # 2. Node.js项目 - 使用npm audit
-        if os.path.exists(package_json):
+        if package_json:
             print(f'[SCA] ✓ 检测到Node.js项目，尝试使用npm audit扫描...', file=sys.stderr)
-            nodejs_results = self._scan_nodejs_dependencies(project_path)
+            # 使用找到package.json的目录作为扫描目录
+            scan_dir = os.path.dirname(package_json)
+            print(f'[SCA] Node.js项目扫描目录: {scan_dir}', file=sys.stderr)
+            nodejs_results = self._scan_nodejs_dependencies(scan_dir)
             print(f'[SCA] Node.js扫描返回 {len(nodejs_results)} 个结果', file=sys.stderr)
             results.extend(nodejs_results)
         else:
             print(f'[SCA] ✗ 未检测到Node.js项目文件', file=sys.stderr)
         
         # 3. Java项目 - 使用Maven或Gradle
-        if os.path.exists(pom_xml):
+        if pom_xml:
             print(f'[SCA] ✓ 检测到Maven项目，但需要Maven环境（暂不支持）', file=sys.stderr)
             print(f'[SCA] 提示: Java项目需要Maven或Gradle环境，当前环境中未安装', file=sys.stderr)
-        elif os.path.exists(build_gradle):
+            print(f'[SCA] pom.xml位置: {pom_xml}', file=sys.stderr)
+        elif build_gradle:
             print(f'[SCA] ✓ 检测到Gradle项目，但需要Gradle环境（暂不支持）', file=sys.stderr)
             print(f'[SCA] 提示: Java项目需要Maven或Gradle环境，当前环境中未安装', file=sys.stderr)
+            print(f'[SCA] build.gradle位置: {build_gradle}', file=sys.stderr)
         else:
             print(f'[SCA] ✗ 未检测到Java项目文件', file=sys.stderr)
         
