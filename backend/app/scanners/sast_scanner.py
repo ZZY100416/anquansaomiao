@@ -37,11 +37,17 @@ class SASTScanner:
                     print(f'[SAST] 错误输出: {check_result.stderr}', file=sys.stderr)
                 
                 # 执行Semgrep扫描
-                # 使用auto和security-audit配置，检测更多安全问题
-                cmd = ['semgrep', '--json', '--config=auto', '--config=p/security-audit', project_path]
+                # 使用auto配置（security-audit太慢，可能超时）
+                # 如果需要更多检测，可以单独使用security-audit，但需要更长的超时时间
+                cmd = ['semgrep', '--json', '--config=auto', project_path]
+                
+                # 如果项目文件很多，可以添加限制选项加快扫描速度
+                # cmd.extend(['--max-memory', '4096', '--max-target-bytes', '5000000'])
+                
                 print(f'[SAST] 执行命令: {" ".join(cmd)}', file=sys.stderr)
                 
-                result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+                # 增加超时时间到600秒（10分钟），因为项目文件可能很多
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
                 
                 print(f'[SAST] Semgrep返回码: {result.returncode}', file=sys.stderr)
                 if result.stderr:
@@ -71,7 +77,11 @@ class SASTScanner:
                     print(f'[SAST] 错误输出: {result.stderr}', file=sys.stderr)
                     
             except subprocess.TimeoutExpired:
-                print(f'[SAST] Semgrep扫描超时（超过300秒）', file=sys.stderr)
+                print(f'[SAST] Semgrep扫描超时（超过600秒）', file=sys.stderr)
+                print(f'[SAST] 提示: 项目文件过多，扫描超时。可以尝试：', file=sys.stderr)
+                print(f'[SAST] 1. 减少扫描的文件数量', file=sys.stderr)
+                print(f'[SAST] 2. 使用更快的扫描配置（只使用--config=auto）', file=sys.stderr)
+                print(f'[SAST] 3. 排除某些目录（如node_modules、vendor等）', file=sys.stderr)
             except Exception as e:
                 import traceback
                 print(f'[SAST] Semgrep扫描异常: {str(e)}', file=sys.stderr)
