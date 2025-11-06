@@ -10,22 +10,34 @@ class ContainerScanner:
         
         # 从扫描配置中获取镜像名称
         try:
+            print(f"[Container] 原始config类型: {type(scan.config)}, 值: {scan.config}", file=sys.stderr)
+            
             if scan.config:
                 # 如果config是字符串，解析JSON
                 if isinstance(scan.config, str):
+                    print(f"[Container] 尝试解析JSON字符串: {scan.config}", file=sys.stderr)
                     config = json.loads(scan.config)
+                    print(f"[Container] 解析后的config: {config}", file=sys.stderr)
                 # 如果已经是字典，直接使用
                 elif isinstance(scan.config, dict):
+                    print(f"[Container] config已经是字典: {scan.config}", file=sys.stderr)
                     config = scan.config
                 else:
+                    print(f"[Container] config类型未知: {type(scan.config)}", file=sys.stderr)
                     config = {}
             else:
+                print(f"[Container] config为空", file=sys.stderr)
                 config = {}
         except (json.JSONDecodeError, TypeError) as e:
             print(f"[Container] 配置解析失败: {str(e)}, config={scan.config}", file=sys.stderr)
+            import traceback
+            print(f"[Container] 错误堆栈: {traceback.format_exc()}", file=sys.stderr)
             config = {}
         
+        print(f"[Container] 最终config: {config}, 类型: {type(config)}", file=sys.stderr)
+        
         image_name = config.get('image_name', '') if isinstance(config, dict) else ''
+        print(f"[Container] 提取的image_name: '{image_name}'", file=sys.stderr)
         
         if not image_name:
             # 模拟扫描结果
