@@ -96,6 +96,8 @@ const Projects = () => {
       const formData = new FormData();
       formData.append('file', file);
       
+      console.log('开始上传文件:', file.name, '大小:', file.size, '项目ID:', uploadProject?.id);
+      
       const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
       const response = await axios.post(
         `${API_BASE_URL}/projects/${uploadProject.id}/upload`,
@@ -105,17 +107,35 @@ const Projects = () => {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'multipart/form-data',
           },
+          onUploadProgress: (progressEvent) => {
+            const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+            console.log('上传进度:', percentCompleted + '%');
+          },
         }
       );
       
-      message.success('文件上传成功');
-      onSuccess(response.data);
-      fetchFileInfo(uploadProject.id);
+      console.log('上传成功，响应:', response.data);
+      message.success(`文件上传成功！${response.data.file_count ? `共 ${response.data.file_count} 个文件` : ''}`);
+      
+      // 调用onSuccess，让Upload组件知道上传成功
+      if (onSuccess) {
+        onSuccess(response.data, file);
+      }
+      
+      // 延迟刷新文件信息，确保后端文件已保存
+      setTimeout(() => {
+        fetchFileInfo(uploadProject.id);
+      }, 500);
+      
       fetchProjects();
     } catch (error) {
       console.error('上传失败:', error);
-      message.error(error.response?.data?.error || '上传失败');
-      onError(error);
+      console.error('错误详情:', error.response?.data);
+      const errorMsg = error.response?.data?.error || error.message || '上传失败';
+      message.error(errorMsg);
+      if (onError) {
+        onError(error);
+      }
     } finally {
       setUploading(false);
     }
@@ -253,7 +273,18 @@ const Projects = () => {
           setUploadProject(null);
           setFileInfo(null);
         }}
-        footer={null}
+        footer={[
+          <Button key="refresh" onClick={() => uploadProject && fetchFileInfo(uploadProject.id)}>
+            刷新状态
+          </Button>,
+          <Button key="close" onClick={() => {
+            setUploadModalVisible(false);
+            setUploadProject(null);
+            setFileInfo(null);
+          }}>
+            关闭
+          </Button>,
+        ]}
         width={600}
       >
         {uploadProject && (
@@ -291,9 +322,25 @@ const Projects = () => {
               customRequest={handleFileUpload}
               showUploadList={true}
               maxCount={1}
+              accept=".zip,.tar,.tar.gz,.gz"
               beforeUpload={(file) => {
+                // 验证文件大小（限制100MB）
+                const isLt100M = file.size / 1024 / 1024 < 100;
+                if (!isLt100M) {
+                  message.error('文件大小不能超过100MB');
+                  return Upload.LIST_IGNORE;
+                }
                 // 不在这里上传，使用customRequest
                 return false;
+              }}
+              onChange={(info) => {
+                console.log('Upload onChange:', info);
+                // 如果上传成功，刷新文件信息
+                if (info.file.status === 'done') {
+                  setTimeout(() => {
+                    fetchFileInfo(uploadProject.id);
+                  }, 1000);
+                }
               }}
             >
               <Button
@@ -301,10 +348,16 @@ const Projects = () => {
                 icon={<UploadOutlined />}
                 loading={uploading}
                 block
+                disabled={uploading}
               >
                 {uploading ? '上传中...' : '选择文件上传'}
               </Button>
             </Upload>
+            {uploading && (
+              <div style={{ marginTop: 8, textAlign: 'center' }}>
+                <span>正在上传，请稍候...</span>
+              </div>
+            )}
           </div>
         )}
       </Modal>

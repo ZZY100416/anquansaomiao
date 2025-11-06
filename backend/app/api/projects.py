@@ -13,6 +13,9 @@ bp = Blueprint('projects', __name__)
 # 项目文件上传目录
 UPLOAD_DIR = '/app/uploaded_files'
 
+# 确保上传目录存在
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+
 @bp.route('', methods=['GET'])
 @jwt_required()
 def get_projects():
@@ -103,67 +106,96 @@ def delete_project(project_id):
 @jwt_required()
 def upload_project_files(project_id):
     """上传项目文件"""
+    import sys
     user_id = int(get_jwt_identity())  # 转换为整数
     project = Project.query.filter_by(id=project_id, user_id=user_id).first()
     
     if not project:
+        print(f"[Upload] 错误: 项目不存在 project_id={project_id}, user_id={user_id}", file=sys.stderr)
         return jsonify({'error': '项目不存在'}), 404
     
     # 检查是否有文件上传
+    print(f"[Upload] 请求文件: {list(request.files.keys())}", file=sys.stderr)
     if 'file' not in request.files:
+        print(f"[Upload] 错误: 没有上传文件", file=sys.stderr)
         return jsonify({'error': '没有上传文件'}), 400
     
     file = request.files['file']
+    print(f"[Upload] 收到文件: {file.filename}, 大小: {file.content_length if hasattr(file, 'content_length') else 'unknown'}", file=sys.stderr)
+    
     if file.filename == '':
+        print(f"[Upload] 错误: 文件名为空", file=sys.stderr)
         return jsonify({'error': '文件名为空'}), 400
+    
+    # 确保上传目录存在
+    if not os.path.exists(UPLOAD_DIR):
+        print(f"[Upload] 创建上传目录: {UPLOAD_DIR}", file=sys.stderr)
+        os.makedirs(UPLOAD_DIR, exist_ok=True)
+        # 设置权限（如果可能）
+        try:
+            os.chmod(UPLOAD_DIR, 0o777)
+        except:
+            pass
     
     # 创建项目目录
     project_dir = os.path.join(UPLOAD_DIR, f'project_{project_id}')
+    print(f"[Upload] 创建项目目录: {project_dir}", file=sys.stderr)
     os.makedirs(project_dir, exist_ok=True)
+    try:
+        os.chmod(project_dir, 0o777)
+    except:
+        pass
+    print(f"[Upload] 项目目录已创建: {project_dir}, 存在: {os.path.exists(project_dir)}", file=sys.stderr)
     
     try:
         # 如果是ZIP文件，解压
         if file.filename.endswith('.zip'):
             zip_path = os.path.join(project_dir, secure_filename(file.filename))
+            print(f"[Upload] 保存ZIP文件到: {zip_path}", file=sys.stderr)
             file.save(zip_path)
             
-            # 清空现有文件（可选，根据需求决定）
-            # 如果希望每次上传都覆盖，取消下面的注释
-            # for item in os.listdir(project_dir):
-            #     item_path = os.path.join(project_dir, item)
-            #     if item != secure_filename(file.filename):
-            #         if os.path.isdir(item_path):
-            #             shutil.rmtree(item_path)
-            #         else:
-            #             os.remove(item_path)
-            
             # 解压ZIP文件
+            print(f"[Upload] 开始解压ZIP文件", file=sys.stderr)
             with zipfile.ZipFile(zip_path, 'r') as zip_ref:
                 zip_ref.extractall(project_dir)
             
             # 删除ZIP文件
             os.remove(zip_path)
+            print(f"[Upload] ZIP文件解压完成，已删除ZIP文件", file=sys.stderr)
+            
+            # 统计解压后的文件
+            file_count = 0
+            for root, dirs, files in os.walk(project_dir):
+                file_count += len(files)
+            print(f"[Upload] 解压后文件数量: {file_count}", file=sys.stderr)
             
             return jsonify({
                 'message': '项目文件上传成功',
                 'project_id': project_id,
-                'path': project_dir
+                'path': project_dir,
+                'file_count': file_count
             }), 200
         else:
             # 单个文件，直接保存
             filename = secure_filename(file.filename)
             file_path = os.path.join(project_dir, filename)
+            print(f"[Upload] 保存单个文件到: {file_path}", file=sys.stderr)
             file.save(file_path)
             
             return jsonify({
                 'message': '项目文件上传成功',
                 'project_id': project_id,
                 'filename': filename,
-                'path': file_path
+                'path': file_path,
+                'file_count': 1
             }), 200
             
     except Exception as e:
-        return jsonify({'error': f'上传失败: {str(e)}'}), 500
+        import traceback
+        error_msg = f'上传失败: {str(e)}'
+        print(f"[Upload] 错误: {error_msg}", file=sys.stderr)
+        print(f"[Upload] 堆栈: {traceback.format_exc()}", file=sys.stderr)
+        return jsonify({'error': error_msg}), 500
 
 @bp.route('/<int:project_id>/files', methods=['GET'])
 @jwt_required()
