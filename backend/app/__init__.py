@@ -29,6 +29,12 @@ def expired_token_callback(jwt_header, jwt_payload):
 
 @jwt.invalid_token_loader
 def invalid_token_callback(error):
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.error(f'JWT验证失败: {str(error)}')
+    # 打印请求头，用于调试
+    from flask import request
+    logger.error(f'请求头Authorization: {request.headers.get("Authorization", "未找到")}')
     return {'error': f'无效的Token: {str(error)}'}, 422
 
 @jwt.unauthorized_loader

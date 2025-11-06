@@ -15,6 +15,12 @@ api.interceptors.request.use(
     const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+      // 调试：检查token格式
+      if (config.url?.includes('dashboard')) {
+        console.log('Dashboard请求 - Token已添加:', token.substring(0, 20) + '...', '长度:', token.length);
+      }
+    } else {
+      console.warn('请求未携带token:', config.url);
     }
     return config;
   },
@@ -40,29 +46,39 @@ api.interceptors.response.use(
       
       console.error('收到422错误:', errorMsg, '完整响应:', errorStr);
       
-      // 只有明确的token错误才清除token
-      const isTokenError = errorMsg.includes('Token') || 
-                          errorMsg.includes('token') || 
-                          errorMsg.includes('无效的Token') ||
-                          errorMsg.includes('无效的') ||
-                          errorMsg.includes('缺少Token') ||
-                          errorMsg.includes('Token已过期') ||
-                          errorStr.toLowerCase().includes('invalid token') ||
-                          errorStr.toLowerCase().includes('token') && errorStr.toLowerCase().includes('invalid');
+      // 检查是否是JWT token相关错误
+      // Flask-JWT-Extended在token无效时会返回422，错误信息可能包含：
+      // - "无效的Token: ..."
+      // - "Invalid token"
+      // - "Token verification failed"
+      const isTokenError = 
+        errorMsg.includes('Token') || 
+        errorMsg.includes('token') || 
+        errorMsg.includes('无效的Token') ||
+        errorMsg.includes('无效的') ||
+        errorMsg.includes('缺少Token') ||
+        errorMsg.includes('Token已过期') ||
+        errorMsg.includes('JWT') ||
+        errorStr.toLowerCase().includes('invalid token') ||
+        errorStr.toLowerCase().includes('jwt') ||
+        (errorStr.toLowerCase().includes('token') && errorStr.toLowerCase().includes('invalid'));
       
       if (isTokenError) {
-        console.error('JWT验证失败，清除token:', errorMsg);
+        console.error('JWT验证失败，清除token并跳转登录:', errorMsg);
         localStorage.removeItem('token');
         localStorage.removeItem('user');
         // 触发认证状态变化事件
         window.dispatchEvent(new Event('authChange'));
         // 延迟跳转，避免与其他逻辑冲突
         setTimeout(() => {
-          window.location.href = '/login';
+          if (!localStorage.getItem('token')) {
+            window.location.href = '/login';
+          }
         }, 100);
       } else {
         // 其他422错误（可能是业务逻辑错误），只记录日志，不跳转
         console.warn('422错误（非token错误，不跳转）:', errorMsg);
+        // 不处理，让组件自己处理错误
       }
     }
     return Promise.reject(error);
