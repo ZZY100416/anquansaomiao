@@ -35,9 +35,36 @@ class ContainerScanner:
             config = {}
         
         print(f"[Container] 最终config: {config}, 类型: {type(config)}", file=sys.stderr)
+        print(f"[Container] config的所有键: {list(config.keys()) if isinstance(config, dict) else 'N/A'}", file=sys.stderr)
         
-        image_name = config.get('image_name', '') if isinstance(config, dict) else ''
-        print(f"[Container] 提取的image_name: '{image_name}'", file=sys.stderr)
+        # 提取镜像名称
+        image_name = ''
+        if isinstance(config, dict):
+            # 打印所有键值对
+            for key, value in config.items():
+                print(f"[Container] config键值: {key} = {value} (类型: {type(value)})", file=sys.stderr)
+            
+            # 直接获取
+            if 'image_name' in config:
+                image_name = config['image_name']
+                print(f"[Container] 使用image_name键，值: '{image_name}'", file=sys.stderr)
+            elif 'imageName' in config:
+                image_name = config['imageName']
+                print(f"[Container] 使用imageName键，值: '{image_name}'", file=sys.stderr)
+            elif 'image' in config:
+                image_name = config['image']
+                print(f"[Container] 使用image键，值: '{image_name}'", file=sys.stderr)
+            else:
+                print(f"[Container] 警告: config中没有找到image_name/imageName/image键", file=sys.stderr)
+            
+            # 确保是字符串类型
+            if image_name and not isinstance(image_name, str):
+                image_name = str(image_name)
+                print(f"[Container] 转换image_name为字符串: '{image_name}'", file=sys.stderr)
+        else:
+            print(f"[Container] 警告: config不是字典类型，无法提取image_name", file=sys.stderr)
+        
+        print(f"[Container] 最终提取的image_name: '{image_name}' (类型: {type(image_name)}, 长度: {len(image_name) if image_name else 0})", file=sys.stderr)
         
         if not image_name:
             # 模拟扫描结果
