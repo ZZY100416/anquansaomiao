@@ -24,6 +24,7 @@ const Projects = () => {
   const [uploading, setUploading] = useState(false);
   const [uploadProject, setUploadProject] = useState(null);
   const [fileInfo, setFileInfo] = useState(null);
+  const [fileList, setFileList] = useState([]);
   const [editingProject, setEditingProject] = useState(null);
   const [form] = Form.useForm();
 
@@ -74,6 +75,7 @@ const Projects = () => {
   const handleUpload = (project) => {
     setUploadProject(project);
     setUploadModalVisible(true);
+    setFileList([]); // 清空文件列表
     fetchFileInfo(project.id);
   };
 
@@ -88,50 +90,73 @@ const Projects = () => {
   };
 
   const handleFileUpload = async (options) => {
-    const { file, onSuccess, onError } = options;
+    const { file, onSuccess, onError, onProgress } = options;
+    
+    if (!uploadProject || !uploadProject.id) {
+      const error = new Error('项目信息不存在');
+      console.error('上传失败:', error);
+      message.error('项目信息不存在，请刷新页面重试');
+      if (onError) {
+        onError(error);
+      }
+      return;
+    }
+    
     setUploading(true);
     
     try {
       const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('未登录，请重新登录');
+      }
+      
       const formData = new FormData();
       formData.append('file', file);
       
-      console.log('开始上传文件:', file.name, '大小:', file.size, '项目ID:', uploadProject?.id);
+      console.log('开始上传文件:', file.name, '大小:', file.size, '项目ID:', uploadProject.id);
       
       const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+      
+      // 使用axios上传
       const response = await axios.post(
         `${API_BASE_URL}/projects/${uploadProject.id}/upload`,
         formData,
         {
           headers: {
             'Authorization': `Bearer ${token}`,
-            'Content-Type': 'multipart/form-data',
+            // 不要手动设置Content-Type，让axios自动设置（包含boundary）
           },
           onUploadProgress: (progressEvent) => {
             const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
             console.log('上传进度:', percentCompleted + '%');
+            if (onProgress) {
+              onProgress({ percent: percentCompleted });
+            }
           },
+          timeout: 300000, // 5分钟超时
         }
       );
       
       console.log('上传成功，响应:', response.data);
-      message.success(`文件上传成功！${response.data.file_count ? `共 ${response.data.file_count} 个文件` : ''}`);
       
       // 调用onSuccess，让Upload组件知道上传成功
       if (onSuccess) {
         onSuccess(response.data, file);
       }
       
+      // 显示成功消息
+      message.success(`文件上传成功！${response.data.file_count ? `共解压 ${response.data.file_count} 个文件` : ''}`);
+      
       // 延迟刷新文件信息，确保后端文件已保存
       setTimeout(() => {
         fetchFileInfo(uploadProject.id);
-      }, 500);
+      }, 1000);
       
       fetchProjects();
     } catch (error) {
       console.error('上传失败:', error);
-      console.error('错误详情:', error.response?.data);
-      const errorMsg = error.response?.data?.error || error.message || '上传失败';
+      console.error('错误详情:', error.response?.data || error.message);
+      const errorMsg = error.response?.data?.error || error.message || '上传失败，请检查网络连接';
       message.error(errorMsg);
       if (onError) {
         onError(error);
@@ -320,7 +345,11 @@ const Projects = () => {
 
             <Upload
               customRequest={handleFileUpload}
-              showUploadList={true}
+              fileList={fileList}
+              showUploadList={{
+                showPreviewIcon: false,
+                showRemoveIcon: true,
+              }}
               maxCount={1}
               accept=".zip,.tar,.tar.gz,.gz"
               beforeUpload={(file) => {
@@ -330,17 +359,90 @@ const Projects = () => {
                   message.error('文件大小不能超过100MB');
                   return Upload.LIST_IGNORE;
                 }
-                // 不在这里上传，使用customRequest
+                console.log('文件已选择:', file.name, '大小:', file.size);
+                // 不阻止上传，让customRequest处理
                 return false;
               }}
               onChange={(info) => {
                 console.log('Upload onChange:', info);
+                const { file, fileList: newFileList } = info;
+                
+                // 更新文件列表
+                setFileList(newFileList);
+                
+                // 如果文件状态为ready，手动触发上传
+                if (file.status === 'ready' && newFileList.length === 1) {
+                  console.log('文件已选择，准备上传...');
+                  // 手动设置文件状态为uploading，触发customRequest
+                  setTimeout(() => {
+                    const updatedFileList = newFileList.map(f => {
+                      if (f.uid === file.uid) {
+                        return { ...f, status: 'uploading' };
+                      }
+                      return f;
+                    });
+                    setFileList(updatedFileList);
+                    // 直接调用上传函数
+                    const fileToUpload = file.originFileObj || file;
+                    console.log('开始上传文件:', fileToUpload.name);
+                    handleFileUpload({
+                      file: fileToUpload,
+                      onSuccess: (response, uploadedFile) => {
+                        console.log('上传成功回调:', response);
+                        const successFileList = updatedFileList.map(f => {
+                          if (f.uid === file.uid || f.name === file.name) {
+                            return { ...f, status: 'done', response };
+                          }
+                          return f;
+                        });
+                        setFileList(successFileList);
+                        // 刷新文件信息
+                        setTimeout(() => {
+                          fetchFileInfo(uploadProject.id);
+                        }, 500);
+                      },
+                      onError: (error) => {
+                        console.error('上传失败回调:', error);
+                        const errorFileList = updatedFileList.map(f => {
+                          if (f.uid === file.uid || f.name === file.name) {
+                            return { ...f, status: 'error', error };
+                          }
+                          return f;
+                        });
+                        setFileList(errorFileList);
+                      },
+                      onProgress: ({ percent }) => {
+                        const progressFileList = updatedFileList.map(f => {
+                          if (f.uid === file.uid || f.name === file.name) {
+                            return { ...f, percent, status: 'uploading' };
+                          }
+                          return f;
+                        });
+                        setFileList(progressFileList);
+                      },
+                    });
+                  }, 100);
+                }
+                
                 // 如果上传成功，刷新文件信息
-                if (info.file.status === 'done') {
+                if (file.status === 'done') {
+                  console.log('上传完成:', file.response);
+                  message.success('文件上传成功！');
                   setTimeout(() => {
                     fetchFileInfo(uploadProject.id);
-                  }, 1000);
+                  }, 500);
                 }
+                
+                // 如果上传失败
+                if (file.status === 'error') {
+                  console.error('上传失败:', file.error);
+                  message.error(file.error?.message || '上传失败');
+                }
+              }}
+              onRemove={() => {
+                console.log('文件已移除');
+                setFileList([]);
+                return true;
               }}
             >
               <Button
