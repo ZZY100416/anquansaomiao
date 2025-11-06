@@ -29,16 +29,24 @@ class ScannerService:
         print(f'[ScannerService] 开始执行扫描: scan_id={scan_id}, type={scan.scan_type}', file=sys.stderr)
         
         try:
+            print(f'[ScannerService] 准备调用扫描器: type={scan.scan_type}', file=sys.stderr)
+            
             if scan.scan_type == 'sast':
+                print(f'[ScannerService] 调用SAST扫描器', file=sys.stderr)
                 results = self.sast_scanner.scan(scan)
             elif scan.scan_type == 'sca':
+                print(f'[ScannerService] 调用SCA扫描器', file=sys.stderr)
                 results = self.sca_scanner.scan(scan)
             elif scan.scan_type == 'container':
+                print(f'[ScannerService] 调用容器扫描器', file=sys.stderr)
                 results = self.container_scanner.scan(scan)
             elif scan.scan_type == 'rasp':
+                print(f'[ScannerService] 调用RASP扫描器', file=sys.stderr)
                 results = self.rasp_scanner.scan(scan)
             else:
                 raise ValueError(f"不支持的扫描类型: {scan.scan_type}")
+            
+            print(f'[ScannerService] 扫描器调用完成，返回 {len(results)} 个结果', file=sys.stderr)
             
             print(f'[ScannerService] 扫描器返回 {len(results)} 个结果', file=sys.stderr)
             
