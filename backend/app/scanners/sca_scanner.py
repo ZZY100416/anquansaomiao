@@ -438,30 +438,18 @@ class SCAScanner:
             
             print(f'[SCA] Maven版本: {check_result.stdout.split(chr(10))[0] if check_result.stdout else "unknown"}', file=sys.stderr)
             
-            # 使用Maven Dependency Plugin获取依赖树
-            # 注意：Maven本身不直接扫描漏洞，需要通过mvn dependency:tree然后分析
-            # 这里使用一个简化的方法：尝试使用mvn dependency:tree，然后可以结合其他工具分析
+            # Maven本身不能直接扫描漏洞，需要OWASP Dependency-Check
+            # 由于Dependency-Check未安装，Maven扫描无法完成
+            # 这里直接返回空结果，避免长时间等待
+            print(f'[SCA] 提示: Maven项目需要OWASP Dependency-Check来分析依赖漏洞', file=sys.stderr)
+            print(f'[SCA] 提示: 当前Dependency-Check未安装，Maven依赖扫描跳过', file=sys.stderr)
+            print(f'[SCA] 提示: 如需扫描Maven项目，请确保Dependency-Check正确安装', file=sys.stderr)
+            print(f'[SCA] Maven扫描完成（跳过，Dependency-Check未安装）', file=sys.stderr)
             
-            # 方法1：使用mvn dependency:tree获取依赖列表
-            print(f'[SCA] 执行Maven依赖分析...', file=sys.stderr)
-            cmd = ['mvn', 'dependency:tree', '-DoutputType=json']
-            
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=600,
-                cwd=project_path
-            )
-            
-            if result.returncode == 0 and result.stdout:
-                print(f'[SCA] Maven依赖树获取成功', file=sys.stderr)
-                # 注意：Maven dependency:tree的输出需要解析，这里暂时返回空结果
-                # 实际生产环境中，应该使用OWASP Dependency-Check或其他工具来分析Maven依赖
-                print(f'[SCA] 提示: Maven依赖树已获取，但需要OWASP Dependency-Check来分析漏洞', file=sys.stderr)
-                print(f'[SCA] 提示: 当前Dependency-Check未安装，Maven依赖扫描无法完成', file=sys.stderr)
-            else:
-                print(f'[SCA] Maven依赖树获取失败: {result.stderr}', file=sys.stderr)
+            # 不执行Maven命令，因为：
+            # 1. Maven dependency:tree不能直接扫描漏洞
+            # 2. 需要Dependency-Check来分析漏洞
+            # 3. 执行Maven命令会下载依赖，耗时很长且无意义
                 
         except subprocess.TimeoutExpired:
             print(f'[SCA] Maven扫描超时', file=sys.stderr)
