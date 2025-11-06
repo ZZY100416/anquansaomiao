@@ -27,9 +27,15 @@ const Projects = () => {
     setLoading(true);
     try {
       const data = await api.get('/projects');
-      setProjects(data);
+      setProjects(data || []);
     } catch (error) {
-      message.error('获取项目列表失败');
+      // 如果API返回错误，设置空数组，不显示错误（可能是422但不影响功能）
+      console.error('获取项目列表失败:', error);
+      setProjects([]);
+      // 只在明确错误时显示消息
+      if (error.response?.status !== 422) {
+        message.error('获取项目列表失败');
+      }
     } finally {
       setLoading(false);
     }

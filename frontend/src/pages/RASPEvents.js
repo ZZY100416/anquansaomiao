@@ -13,7 +13,6 @@ import {
 } from 'antd';
 import {
   SyncOutlined,
-  CheckCircleOutlined,
   ReloadOutlined,
 } from '@ant-design/icons';
 import api from '../services/api';
@@ -38,6 +37,7 @@ const RASPEvents = () => {
   useEffect(() => {
     fetchRASPStatus();
     fetchEvents();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchRASPStatus = async () => {

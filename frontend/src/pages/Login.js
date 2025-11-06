@@ -23,6 +23,7 @@ const Login = () => {
       const token = localStorage.getItem('token');
       if (!token) {
         message.error('登录失败：Token未保存');
+        setLoading(false);
         return;
       }
       
@@ -31,13 +32,12 @@ const Login = () => {
       // 触发认证状态变化事件，让App.js更新状态
       window.dispatchEvent(new Event('authChange'));
       
-      // 延迟一下确保状态更新，然后跳转
-      setTimeout(() => {
-        navigate('/dashboard', { replace: true });
-      }, 200);
+      // 直接跳转，不延迟
+      navigate('/dashboard', { replace: true });
     } catch (error) {
       console.error('登录错误:', error);
-      message.error(error.response?.data?.error || error.message || '登录失败');
+      const errorMsg = error.response?.data?.error || error.message || '登录失败';
+      message.error(errorMsg);
     } finally {
       setLoading(false);
     }

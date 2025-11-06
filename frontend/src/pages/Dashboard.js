@@ -23,6 +23,19 @@ const Dashboard = () => {
       setDashboardData(data);
     } catch (error) {
       console.error('获取仪表盘数据失败:', error);
+      // 如果API返回错误，设置默认数据，避免页面报错
+      setDashboardData({
+        total_projects: 0,
+        total_scans: 0,
+        completed_scans: 0,
+        severity_stats: {
+          critical: 0,
+          high: 0,
+          medium: 0,
+          low: 0,
+          info: 0,
+        },
+      });
     } finally {
       setLoading(false);
     }

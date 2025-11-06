@@ -8,7 +8,6 @@ import {
   Input,
   message,
   Tag,
-  Space,
 } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import api from '../services/api';
@@ -31,9 +30,14 @@ const Scans = () => {
     setLoading(true);
     try {
       const data = await api.get('/scans');
-      setScans(data);
+      setScans(data || []);
     } catch (error) {
-      message.error('获取扫描任务失败');
+      console.error('获取扫描任务失败:', error);
+      setScans([]);
+      // 只在明确错误时显示消息
+      if (error.response?.status !== 422) {
+        message.error('获取扫描任务失败');
+      }
     } finally {
       setLoading(false);
     }

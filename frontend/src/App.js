@@ -7,10 +7,7 @@ import Projects from './pages/Projects';
 import Scans from './pages/Scans';
 import Reports from './pages/Reports';
 import RASPEvents from './pages/RASPEvents';
-import { useAuth } from './services/authService';
-
 function App() {
-  const { isAuthenticated } = useAuth();
   const [authState, setAuthState] = useState(() => {
     // 初始状态：检查localStorage中是否有token
     return !!localStorage.getItem('token');
@@ -21,8 +18,14 @@ function App() {
     const checkAuth = () => {
       const token = localStorage.getItem('token');
       const authenticated = !!token;
-      console.log('检查认证状态:', authenticated ? '已认证' : '未认证', token ? 'Token存在' : 'Token不存在');
-      setAuthState(authenticated);
+      setAuthState((prev) => {
+        // 只有状态真正变化时才更新，避免不必要的重新渲染
+        if (prev !== authenticated) {
+          console.log('认证状态变化:', authenticated ? '已认证' : '未认证');
+          return authenticated;
+        }
+        return prev;
+      });
     };
 
     // 初始检查
@@ -34,18 +37,13 @@ function App() {
     // 监听自定义事件（同标签页登录/登出）
     const handleAuthChange = () => {
       // 立即检查并更新状态
-      console.log('收到authChange事件，更新认证状态');
       checkAuth();
     };
     window.addEventListener('authChange', handleAuthChange);
 
-    // 定期检查（降低频率，避免过于频繁）
-    const interval = setInterval(checkAuth, 3000);
-
     return () => {
       window.removeEventListener('storage', checkAuth);
       window.removeEventListener('authChange', handleAuthChange);
-      clearInterval(interval);
     };
   }, []);
 
