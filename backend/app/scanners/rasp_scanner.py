@@ -58,24 +58,51 @@ class RASPScanner:
                 headers['Authorization'] = f'Bearer {self.rasp_api_key}'
             
             # 获取事件列表
-            # 尝试不同的API路径
+            # 根据OpenRASP文档，尝试不同的API路径
+            # OpenRASP的API通常是 /api/v1/xxx 格式
+            base = self.rasp_api_url.rstrip('/')
             api_paths = [
-                f'{self.rasp_api_url}/api/events',
-                f'{self.rasp_api_url}/events',
-                f'{self.rasp_api_url}/api/v1/events',
+                f'{base}/api/v1/attack',  # 攻击事件API（最常见）
+                f'{base}/api/v1/attack/list',  # 攻击事件列表
+                f'{base}/api/v1/event',  # 事件API
+                f'{base}/api/v1/event/list',  # 事件列表
+                f'{base}/api/attack',  # 简化路径
+                f'{base}/api/events',  # 事件API
+                f'{base}/api/v1/events',  # v1事件API
+                f'{base}/events',  # 直接路径
             ]
             
             response = None
+            successful_path = None
             for api_path in api_paths:
                 try:
                     import sys
                     print(f"[RASP] 尝试API路径: {api_path}", file=sys.stderr)
+                    # 尝试GET请求
                     response = requests.get(api_path, headers=headers, timeout=10)
+                    print(f"[RASP] GET请求返回状态码 {response.status_code}: {api_path}", file=sys.stderr)
+                    
                     if response.status_code == 200:
                         print(f"[RASP] API路径成功: {api_path}", file=sys.stderr)
+                        successful_path = api_path
                         break
-                    else:
-                        print(f"[RASP] API路径返回状态码 {response.status_code}: {api_path}", file=sys.stderr)
+                    elif response.status_code == 405:  # Method Not Allowed，可能需要POST
+                        print(f"[RASP] GET方法不允许，尝试POST: {api_path}", file=sys.stderr)
+                        # 尝试POST请求（可能需要参数）
+                        post_response = requests.post(
+                            api_path,
+                            headers=headers,
+                            json={},  # 空JSON body
+                            timeout=10
+                        )
+                        if post_response.status_code == 200:
+                            print(f"[RASP] POST请求成功: {api_path}", file=sys.stderr)
+                            response = post_response
+                            successful_path = api_path
+                            break
+                except requests.exceptions.ConnectionError as e:
+                    print(f"[RASP] 连接错误: {api_path}, 错误: {str(e)}", file=sys.stderr)
+                    continue
                 except Exception as e:
                     print(f"[RASP] API路径失败: {api_path}, 错误: {str(e)}", file=sys.stderr)
                     continue
@@ -83,18 +110,21 @@ class RASPScanner:
             if not response or response.status_code != 200:
                 import sys
                 print(f"[RASP] 所有API路径都失败，返回模拟数据", file=sys.stderr)
+                print(f"[RASP] 提示: 请查看OpenRASP文档确认正确的API路径", file=sys.stderr)
+                print(f"[RASP] 文档地址: https://rasp.baidu.com/doc/install/main.html", file=sys.stderr)
                 results.append({
                     'severity': 'info',
                     'type': 'RASP Connection',
                     'title': 'OpenRASP API连接失败（模拟数据）',
-                    'description': f'无法连接到OpenRASP API。请检查API地址是否正确。尝试的路径: {api_paths}',
+                    'description': f'无法连接到OpenRASP API。请检查API地址和路径是否正确。\n尝试的路径: {api_paths}\n请参考OpenRASP文档: https://rasp.baidu.com/doc/install/main.html\n或者查看OpenRASP管理后台的API文档。',
                     'file_path': '',
                     'line_number': None,
                     'raw_data': {
                         'is_mock': True,
                         'reason': 'rasp_api_failed',
                         'api_urls': api_paths,
-                        'note': '请检查OpenRASP API地址和路径'
+                        'base_url': self.rasp_api_url,
+                        'note': '请查看OpenRASP API文档确认正确的API端点'
                     }
                 })
                 return results

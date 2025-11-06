@@ -31,7 +31,7 @@ services:
       - DATABASE_URL=postgresql://scanner:scanner123@postgres:5432/security_scanner
       - FLASK_ENV=production
       - SECRET_KEY=your-secret-key-change-in-production
-      - OPENRASP_API_URL=${OPENRASP_API_URL:-http://192.168.203.141:8086/api}
+      - OPENRASP_API_URL=${OPENRASP_API_URL:-http://192.168.203.141:8086}
       - OPENRASP_API_KEY=${OPENRASP_API_KEY:-}
     volumes:
       - ./backend:/app
