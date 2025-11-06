@@ -11,8 +11,11 @@ class RASPScanner:
     
     def __init__(self):
         # OpenRASP管理后台API地址（从环境变量或配置读取）
-        self.rasp_api_url = os.getenv('OPENRASP_API_URL', 'http://localhost:11111/api')
+        # 默认地址：http://192.168.203.141:8086/api
+        self.rasp_api_url = os.getenv('OPENRASP_API_URL', 'http://192.168.203.141:8086/api')
         self.rasp_api_key = os.getenv('OPENRASP_API_KEY', '')
+        import sys
+        print(f"[RASP] OpenRASP API地址: {self.rasp_api_url}", file=sys.stderr)
     
     def scan(self, scan):
         """

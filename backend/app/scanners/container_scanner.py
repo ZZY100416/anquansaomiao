@@ -16,14 +16,22 @@ class ContainerScanner:
                 # 如果config是字符串，解析JSON
                 if isinstance(scan.config, str):
                     print(f"[Container] 尝试解析JSON字符串: {scan.config}", file=sys.stderr)
-                    config = json.loads(scan.config)
-                    print(f"[Container] 解析后的config: {config}", file=sys.stderr)
+                    try:
+                        config = json.loads(scan.config)
+                        print(f"[Container] 解析后的config: {config}, 类型: {type(config)}", file=sys.stderr)
+                        # 确保解析后是字典
+                        if not isinstance(config, dict):
+                            print(f"[Container] 警告: 解析后不是字典类型，强制转换为字典", file=sys.stderr)
+                            config = {}
+                    except json.JSONDecodeError as json_err:
+                        print(f"[Container] JSON解析失败: {str(json_err)}", file=sys.stderr)
+                        config = {}
                 # 如果已经是字典，直接使用
                 elif isinstance(scan.config, dict):
                     print(f"[Container] config已经是字典: {scan.config}", file=sys.stderr)
                     config = scan.config
                 else:
-                    print(f"[Container] config类型未知: {type(scan.config)}", file=sys.stderr)
+                    print(f"[Container] config类型未知: {type(scan.config)}, 值: {scan.config}", file=sys.stderr)
                     config = {}
             else:
                 print(f"[Container] config为空", file=sys.stderr)
