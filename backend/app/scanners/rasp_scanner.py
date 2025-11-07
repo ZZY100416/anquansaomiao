@@ -65,58 +65,99 @@ class RASPScanner:
                 f'{self.rasp_api_url}/api/login',
             ]
             
-            login_data = {
-                'username': self.rasp_username,
-                'password': self.rasp_password
-            }
+            # 尝试不同的登录数据格式
+            login_data_formats = [
+                {
+                    'username': self.rasp_username,
+                    'password': self.rasp_password
+                },
+                {
+                    'user': self.rasp_username,
+                    'pass': self.rasp_password
+                },
+                {
+                    'name': self.rasp_username,
+                    'pwd': self.rasp_password
+                }
+            ]
             
             for login_url in login_paths:
-                try:
-                    print(f"[RASP] 尝试登录获取Cookie: {login_url}", file=sys.stderr)
-                    
-                    response = requests.post(
-                        login_url,
-                        json=login_data,
-                        headers={'Content-Type': 'application/json'},
-                        timeout=10
-                    )
-                    
-                    print(f"[RASP] 登录响应状态码: {response.status_code}", file=sys.stderr)
-                    
-                    if response.status_code == 200:
-                        # 从响应头中提取Cookie（Set-Cookie）
-                        set_cookie_header = response.headers.get('Set-Cookie', '')
-                        if 'RASP_AUTH_ID' in set_cookie_header:
-                            # 从Set-Cookie头中提取RASP_AUTH_ID的值
-                            import re
-                            match = re.search(r'RASP_AUTH_ID=([^;]+)', set_cookie_header)
-                            if match:
-                                auth_cookie_value = match.group(1)
-                                print(f"[RASP] 登录成功，获取到Cookie: RASP_AUTH_ID={auth_cookie_value[:20]}...", file=sys.stderr)
-                                return f'RASP_AUTH_ID={auth_cookie_value}'
+                for login_data in login_data_formats:
+                    try:
+                        print(f"[RASP] 尝试登录获取Cookie: {login_url}, 数据格式: {login_data}", file=sys.stderr)
                         
-                        # 也尝试从cookies对象中获取
-                        cookies = response.cookies
-                        auth_cookie = cookies.get('RASP_AUTH_ID')
-                        if auth_cookie:
-                            print(f"[RASP] 登录成功，从cookies对象获取到Cookie", file=sys.stderr)
-                            return f'RASP_AUTH_ID={auth_cookie}'
+                        response = requests.post(
+                            login_url,
+                            json=login_data,
+                            headers={
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json, text/plain, */*',
+                                'Origin': self.rasp_api_url,
+                                'Referer': f'{self.rasp_api_url}/',
+                            },
+                            timeout=10
+                        )
                         
-                        # 如果响应是JSON，可能Cookie在响应体中
+                        print(f"[RASP] 登录响应状态码: {response.status_code}", file=sys.stderr)
+                        print(f"[RASP] 登录响应内容: {response.text[:200]}", file=sys.stderr)
+                    
+                        # 检查响应（即使状态码是200，响应体可能包含401错误）
                         try:
                             response_data = response.json()
-                            print(f"[RASP] 登录响应数据: {response_data}", file=sys.stderr)
-                            # 某些API可能返回token而不是Cookie
-                            if 'token' in response_data:
-                                print(f"[RASP] 提示: API返回token而不是Cookie，可能需要使用token认证", file=sys.stderr)
+                            # 如果响应体中有status: 401，说明认证失败
+                            if response_data.get('status') == 401 or 'Unauthorized' in str(response_data):
+                                print(f"[RASP] 登录失败: 用户名或密码错误", file=sys.stderr)
+                                print(f"[RASP] 响应数据: {response_data}", file=sys.stderr)
+                                continue  # 尝试下一个数据格式
                         except:
                             pass
                         
-                        print(f"[RASP] 登录成功但未找到Cookie，响应头: {dict(response.headers)}", file=sys.stderr)
-                    else:
-                        print(f"[RASP] 登录失败，状态码: {response.status_code}, 响应: {response.text[:200]}", file=sys.stderr)
-                        if response.status_code == 404:
-                            continue  # 尝试下一个路径
+                        if response.status_code == 200:
+                            # 从响应头中提取Cookie（Set-Cookie）
+                            set_cookie_header = response.headers.get('Set-Cookie', '')
+                            print(f"[RASP] Set-Cookie头: {set_cookie_header}", file=sys.stderr)
+                            
+                            if 'RASP_AUTH_ID' in set_cookie_header:
+                                # 从Set-Cookie头中提取RASP_AUTH_ID的值
+                                import re
+                                match = re.search(r'RASP_AUTH_ID=([^;]+)', set_cookie_header)
+                                if match:
+                                    auth_cookie_value = match.group(1)
+                                    print(f"[RASP] 登录成功，获取到Cookie: RASP_AUTH_ID={auth_cookie_value[:20]}...", file=sys.stderr)
+                                    return f'RASP_AUTH_ID={auth_cookie_value}'
+                            
+                            # 也尝试从cookies对象中获取
+                            cookies = response.cookies
+                            print(f"[RASP] 响应cookies: {dict(cookies)}", file=sys.stderr)
+                            auth_cookie = cookies.get('RASP_AUTH_ID')
+                            if auth_cookie:
+                                print(f"[RASP] 登录成功，从cookies对象获取到Cookie", file=sys.stderr)
+                                return f'RASP_AUTH_ID={auth_cookie}'
+                            
+                            # 如果响应是JSON，可能Cookie在响应体中
+                            try:
+                                response_data = response.json()
+                                print(f"[RASP] 登录响应数据: {response_data}", file=sys.stderr)
+                                # 某些API可能返回token而不是Cookie
+                                if 'token' in response_data:
+                                    print(f"[RASP] 提示: API返回token而不是Cookie，可能需要使用token认证", file=sys.stderr)
+                                # 检查是否真的登录成功
+                                if response_data.get('status') == 401:
+                                    print(f"[RASP] 登录失败: 响应体中的status是401", file=sys.stderr)
+                                    continue  # 尝试下一个数据格式
+                            except:
+                                pass
+                            
+                            print(f"[RASP] 登录成功但未找到Cookie，响应头: {dict(response.headers)}", file=sys.stderr)
+                        elif response.status_code == 401:
+                            print(f"[RASP] 登录失败: HTTP 401 Unauthorized", file=sys.stderr)
+                            print(f"[RASP] 响应: {response.text[:200]}", file=sys.stderr)
+                            continue  # 尝试下一个数据格式
+                        elif response.status_code == 404:
+                            print(f"[RASP] 登录路径不存在: {login_url}", file=sys.stderr)
+                            break  # 尝试下一个路径
+                        else:
+                            print(f"[RASP] 登录失败，状态码: {response.status_code}, 响应: {response.text[:200]}", file=sys.stderr)
                 except Exception as e:
                     print(f"[RASP] 登录路径 {login_url} 异常: {str(e)}", file=sys.stderr)
                     continue
@@ -482,27 +523,69 @@ class RASPScanner:
     def get_rasp_status(self):
         """获取OpenRASP服务状态"""
         try:
-            headers = {}
-            if self.rasp_api_key:
+            import sys
+            # 设置请求头
+            headers = {
+                'Accept': 'application/json, text/plain, */*',
+                'Origin': self.rasp_api_url,
+                'Referer': f'{self.rasp_api_url}/',
+            }
+            
+            # 获取认证Cookie
+            auth_cookie = self.rasp_auth_cookie
+            if not auth_cookie and self.rasp_username and self.rasp_password:
+                print(f"[RASP] get_rasp_status: 尝试登录获取Cookie", file=sys.stderr)
+                auth_cookie = self._get_auth_cookie()
+            
+            # 如果配置了Cookie，添加到请求头
+            if auth_cookie:
+                headers['Cookie'] = auth_cookie
+                print(f"[RASP] get_rasp_status: 使用Cookie认证", file=sys.stderr)
+            elif self.rasp_api_key:
                 headers['Authorization'] = f'Bearer {self.rasp_api_key}'
-            
-            response = requests.get(
-                f'{self.rasp_api_url}/status',
-                headers=headers,
-                timeout=5
-            )
-            
-            if response.status_code == 200:
-                return {
-                    'status': 'connected',
-                    'data': response.json()
-                }
+                headers['X-OpenRASP-Token'] = self.rasp_api_key
             else:
-                return {
-                    'status': 'error',
-                    'message': f'HTTP {response.status_code}'
-                }
+                print(f"[RASP] get_rasp_status: 警告: 未配置认证信息", file=sys.stderr)
+            
+            # 尝试不同的状态API路径
+            status_paths = [
+                f'{self.rasp_api_url}/v1/api/status',
+                f'{self.rasp_api_url}/api/status',
+                f'{self.rasp_api_url}/status',
+            ]
+            
+            for status_url in status_paths:
+                try:
+                    print(f"[RASP] get_rasp_status: 尝试路径: {status_url}", file=sys.stderr)
+                    response = requests.get(status_url, headers=headers, timeout=5)
+                    print(f"[RASP] get_rasp_status: 响应状态码: {response.status_code}", file=sys.stderr)
+                    
+                    if response.status_code == 200:
+                        return {
+                            'status': 'connected',
+                            'data': response.json()
+                        }
+                    elif response.status_code != 404:
+                        # 如果不是404，说明路径存在但可能认证失败
+                        return {
+                            'status': 'error',
+                            'message': f'HTTP {response.status_code}'
+                        }
+                except Exception as e:
+                    print(f"[RASP] get_rasp_status: 路径 {status_url} 失败: {str(e)}", file=sys.stderr)
+                    continue
+            
+            # 所有路径都失败
+            return {
+                'status': 'disconnected',
+                'message': '无法连接到OpenRASP服务，请检查地址和认证信息'
+            }
+            
         except Exception as e:
+            import sys
+            import traceback
+            print(f"[RASP] get_rasp_status: 异常: {str(e)}", file=sys.stderr)
+            print(f"[RASP] get_rasp_status: 错误堆栈: {traceback.format_exc()}", file=sys.stderr)
             return {
                 'status': 'disconnected',
                 'message': str(e)
