@@ -187,7 +187,7 @@ jobs:
       
       - name: Upload Trivy results to GitHub Security
         if: steps.check-docker.outputs.docker-project == 'true'
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: 'trivy-results.sarif'
 
