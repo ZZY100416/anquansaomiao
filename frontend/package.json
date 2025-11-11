@@ -4,7 +4,7 @@
   "description": "统一安全扫描平台前端",
   "private": true,
   "dependencies": {
-    "react": "^18.2.0",
+    "react": "^19.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.20.0",
     "antd": "^5.12.0",
