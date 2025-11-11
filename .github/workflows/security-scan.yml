@@ -177,7 +177,7 @@ jobs:
       
       - name: Run Trivy filesystem scanner
         if: steps.check-docker.outputs.docker-project == 'true'
-        uses: aquasecurity/trivy-action@0.15.0
+        uses: aquasecurity/trivy-action@0.33.1
         with:
           scan-type: 'fs'
           scan-ref: '.'
